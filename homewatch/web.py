@@ -1,0 +1,161 @@
+"""Local dashboard (http://127.0.0.1:8777). Big green/amber/red tiles + 'log a beep' button."""
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Homewatch</title><style>
+:root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--card:#161b22;--ok:#238636;--watch:#d29922;--alert:#da3633;--off:#484f58}
+@media(prefers-color-scheme:light){:root{--bg:#f6f8fa;--fg:#1f2328;--mut:#59636e;--card:#fff}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;max-width:900px;margin:auto}
+h1{font-size:20px;margin:0 0 12px}.tile{border-radius:10px;padding:14px 16px;margin:10px 0;color:#fff}
+.tile b{font-size:18px;display:block}.tile span{opacity:.92;font-size:14px;word-break:break-word}
+.ok{background:var(--ok)}.watch{background:var(--watch)}.alert{background:var(--alert);animation:p 1s infinite alternate}
+.off{background:var(--off)}@keyframes p{to{filter:brightness(1.35)}}
+.card{background:var(--card);border-radius:10px;padding:12px 16px;margin:14px 0}.card h2{font-size:15px;margin:0 0 8px;color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 6px;border-bottom:1px solid #8883}
+button{font-size:16px;padding:12px 18px;border-radius:8px;border:0;background:#1f6feb;color:#fff}
+.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}
+</style><h1>Homewatch <span class=m id=t></span></h1><div id=tiles></div>
+<p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>
+<div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
+<canvas id=radar width=640 height=640 style="width:100%;max-width:560px;display:block;margin:auto"></canvas>
+<p class=m style="font-size:12px;text-align:center">green = your network &nbsp; gray = neighbors &nbsp; amber = tracker/watch &nbsp; red = alert &nbsp; triangle = drone</p></div>
+<div class=card id=dmapcard style="display:none"><h2>Drone map <span class=m>(real positions from Remote ID)</span></h2>
+<canvas id=dmap width=640 height=480 style="width:100%;max-width:560px;display:block;margin:auto"></canvas><div id=dinfo class=m style="font-size:13px"></div></div>
+<div class=card><h2>Recent events</h2><table id=ev></table></div>
+<details class=card><summary><b>If something is flagged - what to do</b></summary><div style="font-size:14px;line-height:1.5">
+<p><b>Stay calm.</b> Most alerts turn out to be ordinary: a neighbor's device, your own phone, a passing car. A single amber or red line is a reason to look, not proof that someone is targeting you.</p>
+<p><b>Tracker:</b> a tracker that stays strong for many minutes is worth finding. Use <code>homewatch find &lt;address&gt;</code> to walk toward it. Don't move or destroy it yet: photograph it where it is, note the time, and contact local law enforcement. iPhone: Find My &rarr; Items &rarr; Identify Found Item. Android: Settings &rarr; Safety &amp; emergency &rarr; Unknown tracker alerts.</p>
+<p><b>Drone:</b> a Remote ID broadcast only <i>claims</i> a drone and can be faked. Note the time and what you saw. Don't shoot at, jam or interfere with it (that is a federal crime). You can report it to local law enforcement or the FAA.</p>
+<p><b>Unknown device on your Wi-Fi:</b> look it up in your router's client list, block it, then change the Wi-Fi password and turn off WPS and any guest network you don't use.</p>
+<p><b>If you feel unsafe</b> (for example a stalker or abusive partner), contact local police or the National Domestic Violence Hotline (US: 1-800-799-7233). A quiet dashboard is not a guarantee of safety: this tool cannot see every kind of device.</p>
+</div></details>
+<div class=card><h2>Wi-Fi networks nearby</h2><table id=wifi></table></div>
+<div class=card><h2>Devices on your network</h2><table id=lan></table></div>
+<div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div>
+<script>
+const E=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let LAST=null;
+const C=()=>getComputedStyle(document.documentElement);
+function hash(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))>>>0;return h}
+function rssiToM(r,tx){return Math.pow(10,(tx-r)/25)}   // log-distance, n=2.5 (rough, indoors)
+function rpos(m){const R=[5,20,60];const mm=Math.max(.5,m);let f;
+ if(mm<=5)f=mm/5*.33;else if(mm<=20)f=.33+(mm-5)/15*.33;else f=Math.min(1,.66+Math.min(mm-20,40)/40*.34);return f}
+function blips(d){const L=d.live,out=[],mine=new Set(d.my_ssids||[]);
+ (L.wifi||[]).forEach(w=>{const known=mine.has(w.ssid)||w.klass==='camera';
+  out.push({id:w.bssid,label:w.ssid||'hidden',m:rssiToM(w.signal,-45),col:mine.has(w.ssid)?'#2ea043':(w.klass==='camera'||w.klass==='drone')?'#da3633':'#8b949e'})});
+ const b=L.ble||{trackers:[],drones:[]};
+ b.trackers.forEach(t=>out.push({id:t.addr,label:t.label,m:rssiToM(t.rssi,-59),col:d.state.tracker.level==='alert'?'#da3633':'#d29922',pulse:1}));
+ b.drones.forEach(t=>out.push({id:t.addr,label:'DRONE',m:rssiToM(t.rssi,-59),col:'#da3633',tri:1,pulse:1}));
+ return out}
+function drawRadar(d){const c=document.getElementById('radar'),x=c.getContext('2d'),W=c.width,cx=W/2,R=W/2-24;
+ x.clearRect(0,0,W,W);const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+ const line=dark?'#30363d':'#c9d1d9',txt=dark?'#8b949e':'#59636e';
+ x.strokeStyle=line;x.fillStyle=txt;x.font='20px sans-serif';
+ [[.33,'very close'],[.66,'close'],[1,'far']].forEach(([f,l])=>{x.beginPath();x.arc(cx,cx,R*f,0,7);x.stroke();x.fillText(l,cx+6,cx-R*f+20)});
+ x.beginPath();x.moveTo(cx-R,cx);x.lineTo(cx+R,cx);x.moveTo(cx,cx-R);x.lineTo(cx,cx+R);x.stroke();
+ const t=Date.now()/1000;
+ x.fillStyle='#58a6ff';x.fillRect(cx-7,cx-7,14,14);   // this computer
+ blips(d).forEach(p=>{const a=(hash(p.id)%3600)/3600*2*Math.PI,r=R*rpos(p.m);
+  const px=cx+r*Math.cos(a),py=cx+r*Math.sin(a);x.fillStyle=p.col;x.strokeStyle=p.col;
+  if(p.pulse){x.globalAlpha=.35;x.beginPath();x.arc(px,py,10+8*Math.abs(Math.sin(t*2)),0,7);x.fill();x.globalAlpha=1}
+  x.beginPath();if(p.tri){x.moveTo(px,py-11);x.lineTo(px+10,py+8);x.lineTo(px-10,py+8);x.closePath()}else x.arc(px,py,7,0,7);x.fill();
+  x.fillStyle=txt;x.font='17px sans-serif';x.fillText((p.label||'').slice(0,16),px+11,py+5)})}
+function toM(lat,lon,H){const k=111320;return [(lon-H.lon)*k*Math.cos(H.lat*Math.PI/180),(lat-H.lat)*k]}
+function drawDrone(d){const fixes=[].concat(...Object.values(d.live.drone_fixes||{})).filter(f=>f.lat),H=d.home;
+ const card=document.getElementById('dmapcard');if(!fixes.length||!H){card.style.display='none';return}
+ card.style.display='block';const c=document.getElementById('dmap'),x=c.getContext('2d'),W=c.width,Hh=c.height;
+ x.clearRect(0,0,W,Hh);const dark=matchMedia('(prefers-color-scheme: dark)').matches,txt=dark?'#8b949e':'#59636e';
+ let pts=[];fixes.forEach(f=>{pts.push(toM(f.lat,f.lon,H));if(f.op_lat)pts.push(toM(f.op_lat,f.op_lon,H))});
+ const maxd=Math.max(100,...pts.map(p=>Math.hypot(p[0],p[1])))*1.25,sc=Math.min(W,Hh)/2/maxd,cx=W/2,cy=Hh/2;
+ x.strokeStyle=dark?'#30363d':'#c9d1d9';x.fillStyle=txt;x.font='16px sans-serif';
+ [.25,.5,1].forEach(f=>{x.beginPath();x.arc(cx,cy,maxd*f*sc,0,7);x.stroke();x.fillText(Math.round(maxd*f)+' m',cx+4,cy-maxd*f*sc+16)});
+ x.fillText('N',cx-5,18);x.fillStyle='#58a6ff';x.fillRect(cx-7,cy-7,14,14);x.fillStyle=txt;x.fillText('HOME',cx+10,cy+4);
+ let info=[];fixes.forEach(f=>{const [mx,my]=toM(f.lat,f.lon,H),px=cx+mx*sc,py=cy-my*sc,dist=Math.round(Math.hypot(mx,my));
+  const brg=Math.round((Math.atan2(mx,my)*180/Math.PI+360)%360);x.fillStyle='#da3633';x.beginPath();x.moveTo(px,py-12);x.lineTo(px+11,py+9);x.lineTo(px-11,py+9);x.closePath();x.fill();
+  if(f.op_lat){const [ox,oy]=toM(f.op_lat,f.op_lon,H);x.fillStyle='#d29922';x.beginPath();x.arc(cx+ox*sc,cy-oy*sc,7,0,7);x.fill();x.strokeStyle='#d29922';x.beginPath();x.moveTo(px,py);x.lineTo(cx+ox*sc,cy-oy*sc);x.stroke()}
+  info.push(`Drone ${E(f.id)}: ${dist} m ${['N','NE','E','SE','S','SW','W','NW'][Math.round(brg/45)%8]} of home, alt ${f.alt??'?'} m`+(f.op_lat?' (amber dot = operator)':'')+` - <a href="https://www.openstreetmap.org/?mlat=${f.lat}&mlon=${f.lon}#map=17/${f.lat}/${f.lon}" target=_blank>open in map</a>`)});
+ dinfo.innerHTML=info.join('<br>')}
+async function load(){try{const d=await (await fetch('/api/status')).json();LAST=d;drawRadar(d);drawDrone(d);
+document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();
+tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${E(s.title)} - ${s.level.toUpperCase()}</b><span>${E(s.msg)}</span></div>`).join('');
+ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
+wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td></tr>`).join('');
+lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td></tr>`).join('');
+const b=d.live.ble||{trackers:[],drones:[]};
+ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
+}catch(e){}}
+load();setInterval(load,2500);setInterval(()=>{if(LAST)drawRadar(LAST)},120);</script>"""
+
+
+def serve(eng, host="127.0.0.1", port=8777, token=None):
+    import hmac
+    from http.cookies import SimpleCookie
+    from urllib.parse import urlparse, parse_qs
+
+    class H(BaseHTTPRequestHandler):
+        def _host_ok(self):
+            """Without a token (localhost mode) only accept Host: 127.0.0.1/localhost - blocks DNS rebinding."""
+            if token:
+                return True
+            h = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+            return h in ("127.0.0.1", "localhost", "::1")
+
+        def _authed(self):
+            if not self._host_ok():
+                return False
+            if not token:
+                return True
+            q = parse_qs(urlparse(self.path).query).get("k", [""])[0]
+            if hmac.compare_digest(q.encode(), token.encode()):
+                return True
+            try:
+                ck = SimpleCookie(self.headers.get("Cookie", ""))
+                v = ck["hw_k"].value if "hw_k" in ck else ""
+            except Exception:
+                v = ""
+            return hmac.compare_digest(v.encode(), token.encode())
+
+        def log_message(self, *a):
+            pass
+
+        def _send(self, code, body, ctype="application/json"):
+            b = body.encode()
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        def do_GET(self):
+            path = urlparse(self.path).path
+            if not self._authed():
+                return self._send(401, "Locked. Open the full link printed by homewatch (it ends in ?k=...).", "text/plain")
+            if path == "/api/status":
+                self._send(200, json.dumps(eng.snapshot(), default=str))
+            elif path == "/":
+                b = PAGE.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                if token:
+                    self.send_header("Set-Cookie", f"hw_k={token}; Path=/; Max-Age=31536000; SameSite=Strict; HttpOnly")
+                self.end_headers()
+                self.wfile.write(b)
+            else:
+                self._send(404, "{}")
+
+        def do_POST(self):
+            if not self._authed() or self.headers.get("X-Homewatch") != "1":
+                return self._send(403, "{}")  # custom header forces a CORS preflight -> cross-site POSTs die
+            if self.path == "/api/beep":
+                eng.beep("dashboard")
+                eng.emit("host", "info", "beep", "x", "Sensor beep logged", cooldown=0)
+                self._send(200, '{"ok":true}')
+            else:
+                self._send(404, "{}")
+
+    srv = ThreadingHTTPServer((host, port), H)
+    threading.Thread(target=srv.serve_forever, daemon=True, name="web").start()
+    return srv
