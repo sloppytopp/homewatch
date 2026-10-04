@@ -17,6 +17,10 @@ classifiers = [
   "Topic :: System :: Networking :: Monitoring",
 ]
 
+[project.urls]
+Homepage = "https://github.com/sloppytopp/homewatch"
+Issues = "https://github.com/sloppytopp/homewatch/issues"
+
 [project.scripts]
 homewatch = "homewatch.cli:main"
 

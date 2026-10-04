@@ -2,9 +2,10 @@
 Home counter-surveillance **detector** for **Linux** (BlueZ + NetworkManager + `iw`). Detect-only: no jamming, no spoofing.
 Run: `./homewatch.sh setup` once, then `./homewatch.sh run` -> http://127.0.0.1:8777
 
-![dashboard with made-up demo data](docs/screenshot.png)
+![dashboard with made-up demo data](https://raw.githubusercontent.com/sloppytopp/homewatch/main/docs/screenshot.png)
 
 ## Install
+`pip install homewatch` (or from source below). System packages are still needed:
 `sudo apt install ieee-data nmap iw network-manager bluez` (the vendor database from `ieee-data`/`nmap` is required for
 camera/drone vendor detection - Homewatch warns at startup if it is missing), then
 `python3 -m venv .venv --system-site-packages && .venv/bin/pip install bleak`.
