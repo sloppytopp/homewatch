@@ -9,6 +9,7 @@ description = "Home counter-surveillance detector for Linux: Remote ID drones, B
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "Ryan Davis" }]
 dependencies = ["bleak>=0.21"]
 classifiers = [
   "Operating System :: POSIX :: Linux",
