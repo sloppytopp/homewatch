@@ -280,6 +280,87 @@ class MineFeature(unittest.TestCase):
         self.assertNotIn("brightness(1.35)", PAGE)                       # old bright pulsing alert is gone
 
 
+class DeafScannerWatchdog(unittest.TestCase):
+    def test_silent_radio_is_never_all_clear(self):
+        eng = Engine(DB(":memory:"), quiet=True)
+        d = det_ble.BLEDetector(eng)
+        now = __import__("time").time()
+        d.started = now - 3600
+        d.last_ad = now - 400                      # nothing heard for ~7 minutes
+        d._evaluate()
+        self.assertEqual(eng.state["tracker"]["level"], "watch")
+        self.assertEqual(eng.state["drone"]["level"], "watch")
+        self.assertIn("NOTHING", eng.state["tracker"]["msg"])
+        self.assertTrue(d._restart)                # asks the loop to power-cycle the adapter
+        # a reset is attempted at most every 10 minutes
+        d._restart = False
+        d._evaluate()
+        self.assertFalse(d._restart)
+
+    def test_hearing_again_clears_the_warning(self):
+        eng = Engine(DB(":memory:"), quiet=True)
+        d = det_ble.BLEDetector(eng)
+        now = __import__("time").time()
+        d.started = now - 3600
+        d.last_ad = now - 400
+        d._evaluate()
+        d.last_ad = now                            # ads are back
+        d._evaluate()
+        self.assertEqual(eng.state["tracker"]["level"], "ok")
+        self.assertEqual(eng.state["drone"]["level"], "ok")
+
+
+class HostNoise(unittest.TestCase):
+    def test_port_classes(self):
+        from homewatch import det_host as h
+        self.assertEqual(h.port_class("tcp 127.0.0.1:5037 adb"), "info")           # adb server, loopback only
+        self.assertEqual(h.port_class("udp 224.0.0.251:5353 chrome"), "info")      # mDNS
+        self.assertEqual(h.port_class("udp *:5353 adb"), "info")
+        self.assertEqual(h.port_class("udp [::]:3702 ?"), "info")                  # WS-Discovery
+        self.assertEqual(h.port_class("tcp 0.0.0.0:8080 python"), "alert")         # reachable from the network
+        self.assertEqual(h.port_class("tcp *:22 sshd"), "alert")
+
+    def _host(self, ports, usb):
+        from homewatch import det_host as h
+        eng = Engine(DB(":memory:"), quiet=True)
+        det = h.HostDetector(eng)
+        h.listening = lambda: set(ports)
+        h.usb_devices = lambda: set(usb)
+        h.fd_users = lambda pats: {}
+        h.audio_recorders = lambda: []
+        return h, eng, det
+
+    def test_harmless_new_port_is_logged_once_then_normal(self):
+        h, eng, det = self._host({"tcp 0.0.0.0:631 cupsd"}, {"hub"})
+        det.check()                                                 # first run learns the baseline
+        h.listening = lambda: {"tcp 0.0.0.0:631 cupsd", "tcp 127.0.0.1:5037 adb"}
+        det.check()
+        self.assertEqual(eng.state["host"]["level"], "ok")
+        n = len(eng.db.query("SELECT * FROM events WHERE kind='hostport'"))
+        det.check()
+        self.assertEqual(len(eng.db.query("SELECT * FROM events WHERE kind='hostport'")), n)   # not repeated every hour
+
+    def test_reachable_new_port_stays_red_until_approved(self):
+        h, eng, det = self._host({"tcp 0.0.0.0:631 cupsd"}, {"hub"})
+        det.check()
+        h.listening = lambda: {"tcp 0.0.0.0:631 cupsd", "tcp 0.0.0.0:4444 nc"}
+        det.check(); det.check()
+        self.assertEqual(eng.state["host"]["level"], "alert")
+        self.assertIn("4444", eng.state["host"]["msg"])
+
+    def test_new_usb_is_amber_then_accepted(self):
+        import time as _t
+        h, eng, det = self._host({"tcp 0.0.0.0:631 cupsd"}, {"hub"})
+        det.check()
+        h.usb_devices = lambda: {"hub", "ID 1bbb:0167 Phone"}
+        det.check()
+        self.assertEqual(eng.state["host"]["level"], "watch")
+        det.usb_pending["ID 1bbb:0167 Phone"] = _t.time() - 1       # 10 minutes later
+        det.check()
+        self.assertEqual(eng.state["host"]["level"], "ok")
+        self.assertEqual(len(eng.db.query("SELECT * FROM events WHERE kind='usb'")), 1)
+
+
 class Privacy(unittest.TestCase):
     def test_operator_position_not_stored(self):
         eng = Engine(DB(":memory:"), quiet=True)

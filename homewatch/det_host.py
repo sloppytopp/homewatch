@@ -2,6 +2,7 @@
 import glob
 import os
 import re
+import time
 import subprocess
 
 REMOTE_TOOLS = re.compile(r"anydesk|teamviewer|rustdesk|x11vnc|vncserver|Xvnc|tigervnc|vino|"
@@ -40,6 +41,22 @@ def audio_recorders():
     return apps
 
 
+# UDP ports used by ordinary LAN discovery / DHCP: seeing them appear is normal, never an alarm.
+LAN_DISCOVERY_UDP = {5353, 5355, 3702, 1900, 67, 68, 546, 547}
+
+
+def port_class(entry):
+    """'info' = harmless-looking (loopback-only, or ordinary LAN discovery); 'alert' = reachable from other machines."""
+    proto, addr, *_ = entry.split(None, 2)
+    host, _, port = addr.rpartition(":")
+    host = host.strip("[]")
+    if host.startswith("127.") or host == "::1":
+        return "info"
+    if proto.startswith("udp") and port.isdigit() and int(port) in LAN_DISCOVERY_UDP:
+        return "info"
+    return "alert"
+
+
 def listening():
     out = subprocess.run(["ss", "-H", "-tulnp"], capture_output=True, text=True).stdout
     res = set()
@@ -65,6 +82,7 @@ class HostDetector:
         self.base_ports = set(eng.db.kv_get("host_ports", []))
         self.base_usb = set(eng.db.kv_get("host_usb", []))
         self.learn = not self.base_ports
+        self.usb_pending = {}
 
     def start(self):
         import threading
@@ -99,10 +117,27 @@ class HostDetector:
             self.base_ports, self.base_usb, self.learn = ports, usb, False
             eng.db.kv_set("host_ports", sorted(ports))
             eng.db.kv_set("host_usb", sorted(usb))
+        watching = []
+        # new listening ports: harmless ones are logged once and then treated as normal; reachable ones stay red until approved
         for p in sorted(ports - self.base_ports):
-            problems.append(f"new listening port: {p}")
+            if port_class(p) == "info":
+                eng.emit("host", "info", "hostport", p, f"new listening port (local/discovery only): {p}", cooldown=0)
+                self.base_ports.add(p)
+                eng.db.kv_set("host_ports", sorted(self.base_ports))
+            else:
+                problems.append(f"new listening port reachable from the network: {p}  (check it, then run: homewatch rebaseline)")
+        # new USB devices: amber for 10 minutes, then accepted as normal (it is logged either way)
+        now = time.time()
         for u in sorted(usb - self.base_usb):
-            problems.append(f"new USB device: {u}")
+            until = self.usb_pending.setdefault(u, now + 600)
+            if until == now + 600:
+                eng.emit("host", "watch", "usb", u, f"new USB device: {u}", cooldown=0)
+            if now < until:
+                watching.append(f"new USB device: {u}")
+            else:
+                self.base_usb.add(u)
+                self.usb_pending.pop(u, None)
+                eng.db.kv_set("host_usb", sorted(self.base_usb))
         for line in subprocess.run(["ps", "-eo", "pid,comm,args"], capture_output=True, text=True).stdout.splitlines():
             if REMOTE_TOOLS.search(line.split(None, 2)[1] if len(line.split(None, 2)) > 1 else ""):
                 problems.append(f"remote-access tool running: {line.strip()[:80]}")
@@ -110,6 +145,8 @@ class HostDetector:
             eng.status("host", "alert", "; ".join(problems[:3]))
             for p in problems:
                 eng.emit("host", "alert", "host", p, p, cooldown=3600)
+        elif watching:
+            eng.status("host", "watch", "; ".join(watching[:3]))
         else:
             eng.status("host", "ok", "No camera/mic use, no new ports or USB devices, no remote-access tools")
         eng.live["host"] = {"listening": sorted(ports), "usb": sorted(usb), "no_video_devices": not glob.glob("/dev/video*")}

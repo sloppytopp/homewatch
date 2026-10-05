@@ -82,6 +82,16 @@ class LanDetector:
         gw, ifc, me = local_net()
         if not me or me.network.num_addresses > 1024:
             raise RuntimeError("no usable LAN")
+        cur = str(me.network)
+        home = eng.db.kv_get("lan_subnet")
+        if not home and self.baseline_done:
+            eng.db.kv_set("lan_subnet", cur)          # existing install: the network we've been watching is home
+            home = cur
+        if home and cur != home:
+            # e.g. a phone's USB-tether network: its gateway is not a stranger joining YOUR network
+            eng.emit("network", "info", "lan_other", cur, f"On a different network ({cur} via {ifc}); LAN inventory paused until back on {home}", cooldown=3600)
+            eng.status("network", "ok", f"LAN inventory paused - on a different network ({cur}); home network is {home}", "lan")
+            return
         hosts = [str(h) for h in me.network.hosts() if str(h) != str(me.ip)]
         with cf.ThreadPoolExecutor(64) as ex:
             list(ex.map(ping, hosts))
@@ -124,6 +134,7 @@ class LanDetector:
             eng.status("network", "ok", f"{len(neigh)} devices on LAN, all known{note}", "lan")
         if not self.baseline_done:
             eng.db.kv_set("lan_baseline", True)
+            eng.db.kv_set("lan_subnet", cur)
             self.baseline_done = True
             eng.emit("network", "info", "lan_baseline", "x",
                      f"Baseline recorded: {len(neigh)} devices on LAN (review with: homewatch devices)", cooldown=0)

@@ -234,6 +234,25 @@ def cmd_setup(a):
           "(your router's client list can help).\nStart with:  homewatch run")
 
 
+def cmd_rebaseline(a):
+    """Accept everything currently listening / plugged in as normal (after you have checked it)."""
+    from . import det_host
+    db = DB()
+    p, u = det_host.listening(), det_host.usb_devices()
+    db.kv_set("host_ports", sorted(p))
+    db.kv_set("host_usb", sorted(u))
+    print(f"Accepted {len(p)} listening ports and {len(u)} USB devices as normal.")
+
+
+def cmd_forget_network(a):
+    """Moved house / changed router: forget the saved home network and device list, then re-learn."""
+    db = DB()
+    db.exec("DELETE FROM devices")
+    db.kv_set("lan_baseline", False)
+    db.exec("DELETE FROM kv WHERE k='lan_subnet'")
+    print("Forgot the home network. The next `homewatch setup` / `run` learns the current one.")
+
+
 def cmd_scan(a):
     """One-shot scan of everything, print answers, exit."""
     from . import det_ble, det_host, det_lan, det_wifi
@@ -307,6 +326,8 @@ def main():
     nt = sp.add_parser("ntfy", help="phone alerts via ntfy.sh")
     nt.add_argument("action", choices=["setup", "test", "on", "off"])
     nt.set_defaults(f=cmd_ntfy)
+    sp.add_parser("rebaseline", help="accept current listening ports + USB devices as normal").set_defaults(f=cmd_rebaseline)
+    sp.add_parser("forget-network", help="forget the saved home network and re-learn").set_defaults(f=cmd_forget_network)
     sp.add_parser("setup", help="first-run walkthrough").set_defaults(f=cmd_setup)
     sp.add_parser("scan", help="one-shot scan, print answers").set_defaults(f=cmd_scan)
     sp.add_parser("selftest").set_defaults(f=cmd_selftest)

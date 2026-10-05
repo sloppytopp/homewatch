@@ -12,6 +12,7 @@ TRACKER_UUIDS = {
 }
 REMOTE_ID_UUID = "fffa"
 WINDOW = 300  # seconds a sighting stays "current"
+DEAF_AFTER = 150  # seconds of total radio silence before we stop claiming 'all clear'
 
 
 def short_uuid(u):
@@ -48,12 +49,18 @@ class BLEDetector:
         self.seen_total = 0
         self.ambient = 0
         self.ignored = set(eng.db.kv_get("ble_ignore", []))
+        self.started = time.time()
+        self.last_ad = self.started   # last time ANY advertisement was heard
+        self.last_recover = 0
+        self._restart = False
+        self.deaf = False
 
     def start(self):
         import threading
         threading.Thread(target=lambda: asyncio.run(self._main()), daemon=True, name="ble").start()
 
     def _cb(self, device, adv):
+        self.last_ad = time.time()
         self.seen_total += 1
         try:
             kind, label, extra = classify_adv(adv.manufacturer_data, adv.service_data,
@@ -82,17 +89,44 @@ class BLEDetector:
             try:
                 scanner = BleakScanner(self._cb)
                 await scanner.start()
-                while not self.eng.stop.is_set():
+                while not self.eng.stop.is_set() and not self._restart:
                     await asyncio.sleep(5)
                     self._evaluate()
                 await scanner.stop()
+                if self._restart:          # watchdog asked for a reset: power-cycle the adapter, then scan again
+                    self._restart = False
+                    await self._power_cycle()
             except Exception as e:  # adapter off / BlueZ hiccup
                 self.eng.status("drone", "watch", f"Bluetooth scan unavailable: {e}", "ble")
                 self.eng.status("tracker", "watch", f"Bluetooth scan unavailable: {e}")
                 await asyncio.sleep(15)
 
+    async def _power_cycle(self):
+        import shutil
+        if shutil.which("bluetoothctl"):
+            for cmd in ("power off", "power on"):
+                p = await asyncio.create_subprocess_exec("bluetoothctl", *cmd.split(),
+                                                         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await p.wait()
+                await asyncio.sleep(3)
+        self.last_ad = time.time()   # grace period after the reset
+
     def _evaluate(self):
         now = time.time()
+        silent = now - max(self.last_ad, self.started)
+        self.deaf = silent > DEAF_AFTER
+        if self.deaf:
+            # A radio that hears NOTHING in a house full of devices is broken, not "all clear".
+            msg = (f"Bluetooth has heard NOTHING for {max(1, int(silent // 60))} min - the scanner may be stuck, "
+                   "so tracker and drone checks are blind (trying a reset)")
+            self.eng.status("tracker", "watch", msg)
+            self.eng.status("drone", "watch", msg, "ble")
+            self.eng.emit("tracker", "watch", "ble_deaf", "x", msg, cooldown=3600)
+            self.eng.live["ble"] = {"advertisements_seen": self.seen_total, "trackers": [], "drones": [], "deaf": True}
+            if now - self.last_recover > 600:
+                self.last_recover = now
+                self._restart = True
+            return
         self.ignored = set(self.eng.db.kv_get("ble_ignore", []))   # picks up 'This is mine' taps right away
         drones, trackers = [], []
         for addr, s in self.seen.items():
