@@ -99,6 +99,7 @@ class Engine:
         self.state = {d: {"level": "off", "msg": "starting", "ts": time.time()} for d in DOMAINS}
         self.lock = threading.Lock()
         self.sources = {}
+        self.started = time.time()
         self.stop = threading.Event()
         self._last_emit = {}
         self.live = {}  # free-form live detail per detector (shown on dashboard)
@@ -171,4 +172,4 @@ class Engine:
             st = {d: dict(v, title=DOMAINS[d]) for d, v in self.state.items()}
         recent = self.db.query("SELECT ts,domain,level,msg FROM events ORDER BY id DESC LIMIT 40")
         return {"now": time.time(), "state": st, "events": recent, "live": self.live,
-                "home": load_config().get("home"), "my_ssids": load_config().get("my_ssids", [])}
+                "home": load_config().get("home"), "my_ssids": load_config().get("my_ssids", []), "started": self.started}

@@ -132,6 +132,7 @@ class WifiDetector:
                          f"{b['vendor']} {b['signal']:.0f} dBm", b, 86400)
         self.known |= {b["bssid"] for b in bss_list}
         eng.db.kv_set("wifi_known", sorted(self.known))
+        eng.live["wifi_at"] = time.time()
         eng.live["wifi"] = sorted(
             [{"ssid": b["ssid"] or "(hidden)", "bssid": b["bssid"], "signal": b["signal"],
               "vendor": b["vendor"], "klass": b["klass"]} for b in bss_list],

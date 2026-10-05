@@ -239,6 +239,47 @@ class WebSecurity(unittest.TestCase):
         srv.shutdown()
 
 
+class MineFeature(unittest.TestCase):
+    def test_own_tracker_does_not_flag(self):
+        eng = Engine(DB(":memory:"), quiet=True)
+        d = det_ble.BLEDetector(eng)
+        now = __import__("time").time()
+        d.seen["E9:F5:02:62:C4:B5"] = {"kind": "tracker", "label": "Tile tracker", "first": now - 900, "last": now, "n": 40,
+                                       "rssi": -55, "rssi_max": -50, "extra": {}}
+        d._evaluate()
+        self.assertEqual(eng.state["tracker"]["level"], "alert")          # persistent + close, unknown
+        eng.db.kv_set("ble_ignore", ["E9:F5:02:62:C4:B5"])                 # user taps "this is mine"
+        d._evaluate()
+        self.assertEqual(eng.state["tracker"]["level"], "ok")
+        self.assertIn("your own", eng.state["tracker"]["msg"])
+        self.assertTrue(eng.live["ble"]["trackers"][0]["mine"])
+
+    def test_mine_api_needs_header_and_valid_address(self):
+        from homewatch import web
+        import http.client
+        eng = Engine(DB(":memory:"), quiet=True)
+        srv = web.serve(eng, "127.0.0.1", 0, None)
+        port = srv.server_address[1]
+
+        def post(path, hdr=None):
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            c.request("POST", path, headers=hdr or {})
+            r = c.getresponse(); r.read(); c.close(); return r.status
+        h = {"X-Homewatch": "1"}
+        self.assertEqual(post("/api/mine?addr=AA:BB:CC:DD:EE:FF&on=1"), 403)               # no header
+        self.assertEqual(post("/api/mine?addr=not-an-address&on=1", h), 400)               # validated
+        self.assertEqual(post("/api/mine?addr=aa:bb:cc:dd:ee:ff&on=1", h), 200)
+        self.assertEqual(eng.db.kv_get("ble_ignore"), ["AA:BB:CC:DD:EE:FF"])
+        self.assertEqual(post("/api/mine?addr=AA:BB:CC:DD:EE:FF&on=0", h), 200)
+        self.assertEqual(eng.db.kv_get("ble_ignore"), [])
+        srv.shutdown(); srv.server_close()
+
+    def test_page_has_banner_night_and_no_flashing_alerts(self):
+        from homewatch.web import PAGE
+        self.assertIn('id=banner', PAGE); self.assertIn('id=night', PAGE)
+        self.assertNotIn("brightness(1.35)", PAGE)                       # old bright pulsing alert is gone
+
+
 class Privacy(unittest.TestCase):
     def test_operator_position_not_stored(self):
         eng = Engine(DB(":memory:"), quiet=True)

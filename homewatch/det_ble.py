@@ -93,6 +93,7 @@ class BLEDetector:
 
     def _evaluate(self):
         now = time.time()
+        self.ignored = set(self.eng.db.kv_get("ble_ignore", []))   # picks up 'This is mine' taps right away
         drones, trackers = [], []
         for addr, s in self.seen.items():
             if now - s["last"] > WINDOW:
@@ -129,9 +130,10 @@ class BLEDetector:
             self.eng.emit("tracker", "alert" if close else "watch", "ble_tracker", addr, msg,
                           {"addr": addr, "rssi": s["rssi"], "label": s["label"]}, 900)
         else:
-            self.eng.status("tracker", "ok", f"No separated trackers in range ({self.seen_total} BLE ads heard, {self.ambient} normal Apple devices ignored)")
+            own = sum(1 for a, _ in trackers if a in self.ignored)
+            self.eng.status("tracker", "ok", f"No unknown trackers in range ({self.seen_total} BLE ads heard, {self.ambient} normal Apple devices ignored"
+                            + (f", {own} of your own trackers" if own else "") + ")")
 
-    @staticmethod
-    def _row(addr, s, now):
-        return {"addr": addr, "label": s["label"], "rssi": s.get("rssi"), "seen_s": int(s["last"] - s["first"]),
+    def _row(self, addr, s, now):
+        return {"mine": addr in self.ignored, "addr": addr, "label": s["label"], "rssi": s.get("rssi"), "seen_s": int(s["last"] - s["first"]),
                 "ago_s": int(now - s["last"])}

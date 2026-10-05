@@ -1,22 +1,34 @@
 """Local dashboard (http://127.0.0.1:8777). Big green/amber/red tiles + 'log a beep' button."""
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>Homewatch</title><style>
-:root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--card:#161b22;--ok:#238636;--watch:#d29922;--alert:#da3633;--off:#484f58}
-@media(prefers-color-scheme:light){:root{--bg:#f6f8fa;--fg:#1f2328;--mut:#59636e;--card:#fff}}
+:root{--bg:#000;--fg:#c8c8c8;--mut:#8a8a8a;--faint:#6a6a6a;--card:#0e0e0e;--ring:#2a2a2a;
+--okbg:#0f1d15;--watchbg:#211b0d;--alertbg:#2a1313;--offbg:#141414;--ok:#5e9a74;--watch:#b39a55;--alert:#c06a6a;--off:#7a7a7a;--btn:#1c2a22;--btnfg:#9cc7ab}
+html.night{--fg:#8c3030;--mut:#722b2b;--faint:#5a2222;--card:#0a0303;--ring:#2a0d0d;--okbg:#0c0404;--watchbg:#0c0404;--alertbg:#0c0404;--offbg:#0c0404;
+--ok:#6e2a2a;--watch:#8c3434;--alert:#aa4040;--off:#4a1c1c;--btn:#1a0707;--btnfg:#8c3030}
 body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;max-width:900px;margin:auto}
-h1{font-size:20px;margin:0 0 12px}.tile{border-radius:10px;padding:14px 16px;margin:10px 0;color:#fff}
-.tile b{font-size:18px;display:block}.tile span{opacity:.92;font-size:14px;word-break:break-word}
-.ok{background:var(--ok)}.watch{background:var(--watch)}.alert{background:var(--alert);animation:p 1s infinite alternate}
-.off{background:var(--off)}@keyframes p{to{filter:brightness(1.35)}}
+.top{display:flex;align-items:center;gap:10px;margin:0 0 10px}.top h1{font-size:20px;margin:0;flex:1}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--off);display:inline-block}.dot.live{background:var(--ok);animation:br 1.4s ease-in-out infinite alternate}
+@keyframes br{from{opacity:.3}to{opacity:1}}@media(prefers-reduced-motion:reduce){.dot.live{animation:none}}
+.banner{border-radius:12px;padding:14px 16px;margin:8px 0;border-left:5px solid var(--off);background:var(--offbg)}
+.banner b{font-size:18px;display:block}.banner span{font-size:12px;color:var(--mut)}
+.tile{border-radius:10px;padding:12px 16px;margin:8px 0;border-left:5px solid var(--off);background:var(--offbg)}
+.tile b{font-size:16px;display:block}.tile span{font-size:13px;color:var(--mut);word-break:break-word}
+.ok{background:var(--okbg);border-color:var(--ok)}.ok b,.banner.ok b{color:var(--ok)}
+.watch{background:var(--watchbg);border-color:var(--watch)}.watch b,.banner.watch b{color:var(--watch)}
+.alert{background:var(--alertbg);border-color:var(--alert)}.alert b,.banner.alert b{color:var(--alert)}
+.off b{color:var(--off)}
 .card{background:var(--card);border-radius:10px;padding:12px 16px;margin:14px 0}.card h2{font-size:15px;margin:0 0 8px;color:var(--mut)}
-table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 6px;border-bottom:1px solid #8883}
-button{font-size:16px;padding:12px 18px;border-radius:8px;border:0;background:#1f6feb;color:#fff}
-.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}
-</style><h1>Homewatch <span class=m id=t></span></h1><div id=tiles></div>
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 6px;border-bottom:1px solid var(--ring)}
+button{font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);cursor:pointer}
+.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
+</style><div class=top><span class=dot id=hb></span><h1>Homewatch <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
+<div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
 <p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>
 <div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
 <canvas id=radar width=640 height=640 style="width:100%;max-width:560px;display:block;margin:auto"></canvas>
@@ -35,8 +47,18 @@ button{font-size:16px;padding:12px 18px;border-radius:8px;border:0;background:#1
 <div class=card><h2>Devices on your network</h2><table id=lan></table></div>
 <div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div>
 <script>
+try{if(localStorage.getItem('hw_night')==='1'){document.documentElement.classList.add('night');night.checked=true}}catch(e){}
+night.onchange=()=>{document.documentElement.classList.toggle('night',night.checked);try{localStorage.setItem('hw_night',night.checked?'1':'0')}catch(e){}};
+const ICON={ok:'✓',watch:'◔',alert:'▲',off:'–'};
+const ago=s=>s<60?Math.round(s)+'s':Math.floor(s/60)+'m '+Math.round(s%60)+'s';
+function banner(d){const lv=Object.values(d.state).filter(x=>x.title.indexOf('computer')<0).map(x=>x.level);const w=lv.includes('alert')?'alert':lv.includes('watch')?'watch':'ok';
+ const b=document.getElementById('banner');b.className='banner '+w;hb.className='dot live';
+ const wa=d.live.wifi_at?' · Wi-Fi: '+(d.live.wifi||[]).length+' networks (scanned '+ago(d.now-d.live.wifi_at)+' ago)':'';
+ const ads=d.live.ble?' · Bluetooth: '+d.live.ble.advertisements_seen+' signals heard':'';
+ b.innerHTML='<b>'+(w==='alert'?'Needs your attention':w==='watch'?'Keeping an eye on something':'All clear')+'</b><span>Scanning for '+ago(d.now-(d.started||d.now))+wa+ads+'</span>'}
 const E=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 let LAST=null;
+async function mine(a,on){await fetch('/api/mine?addr='+encodeURIComponent(a)+'&on='+on,{method:'POST',headers:{'X-Homewatch':'1'}});load()}
 const C=()=>getComputedStyle(document.documentElement);
 function hash(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))>>>0;return h}
 function rssiToM(r,tx){return Math.pow(10,(tx-r)/25)}   // log-distance, n=2.5 (rough, indoors)
@@ -44,14 +66,14 @@ function rpos(m){const R=[5,20,60];const mm=Math.max(.5,m);let f;
  if(mm<=5)f=mm/5*.33;else if(mm<=20)f=.33+(mm-5)/15*.33;else f=Math.min(1,.66+Math.min(mm-20,40)/40*.34);return f}
 function blips(d){const L=d.live,out=[],mine=new Set(d.my_ssids||[]);
  (L.wifi||[]).forEach(w=>{const known=mine.has(w.ssid)||w.klass==='camera';
-  out.push({id:w.bssid,label:w.ssid||'hidden',m:rssiToM(w.signal,-45),col:mine.has(w.ssid)?'#2ea043':(w.klass==='camera'||w.klass==='drone')?'#da3633':'#8b949e'})});
+  out.push({id:w.bssid,label:w.ssid||'hidden',m:rssiToM(w.signal,-45),col:mine.has(w.ssid)?getComputedStyle(document.documentElement).getPropertyValue('--ok').trim():(w.klass==='camera'||w.klass==='drone')?'#da3633':'#7a7a7a'})});
  const b=L.ble||{trackers:[],drones:[]};
  b.trackers.forEach(t=>out.push({id:t.addr,label:t.label,m:rssiToM(t.rssi,-59),col:d.state.tracker.level==='alert'?'#da3633':'#d29922',pulse:1}));
  b.drones.forEach(t=>out.push({id:t.addr,label:'DRONE',m:rssiToM(t.rssi,-59),col:'#da3633',tri:1,pulse:1}));
  return out}
 function drawRadar(d){const c=document.getElementById('radar'),x=c.getContext('2d'),W=c.width,cx=W/2,R=W/2-24;
  x.clearRect(0,0,W,W);const dark=matchMedia('(prefers-color-scheme: dark)').matches;
- const line=dark?'#30363d':'#c9d1d9',txt=dark?'#8b949e':'#59636e';
+ const line=dark?'#30363d':'#c9d1d9',txt=dark?'#7a7a7a':'#59636e';
  x.strokeStyle=line;x.fillStyle=txt;x.font='20px sans-serif';
  [[.33,'very close'],[.66,'close'],[1,'far']].forEach(([f,l])=>{x.beginPath();x.arc(cx,cx,R*f,0,7);x.stroke();x.fillText(l,cx+6,cx-R*f+20)});
  x.beginPath();x.moveTo(cx-R,cx);x.lineTo(cx+R,cx);x.moveTo(cx,cx-R);x.lineTo(cx,cx+R);x.stroke();
@@ -66,7 +88,7 @@ function toM(lat,lon,H){const k=111320;return [(lon-H.lon)*k*Math.cos(H.lat*Math
 function drawDrone(d){const fixes=[].concat(...Object.values(d.live.drone_fixes||{})).filter(f=>f.lat),H=d.home;
  const card=document.getElementById('dmapcard');if(!fixes.length||!H){card.style.display='none';return}
  card.style.display='block';const c=document.getElementById('dmap'),x=c.getContext('2d'),W=c.width,Hh=c.height;
- x.clearRect(0,0,W,Hh);const dark=matchMedia('(prefers-color-scheme: dark)').matches,txt=dark?'#8b949e':'#59636e';
+ x.clearRect(0,0,W,Hh);const dark=matchMedia('(prefers-color-scheme: dark)').matches,txt=dark?'#7a7a7a':'#59636e';
  let pts=[];fixes.forEach(f=>{pts.push(toM(f.lat,f.lon,H));if(f.op_lat)pts.push(toM(f.op_lat,f.op_lon,H))});
  const maxd=Math.max(100,...pts.map(p=>Math.hypot(p[0],p[1])))*1.25,sc=Math.min(W,Hh)/2/maxd,cx=W/2,cy=Hh/2;
  x.strokeStyle=dark?'#30363d':'#c9d1d9';x.fillStyle=txt;x.font='16px sans-serif';
@@ -79,12 +101,12 @@ function drawDrone(d){const fixes=[].concat(...Object.values(d.live.drone_fixes|
  dinfo.innerHTML=info.join('<br>')}
 async function load(){try{const d=await (await fetch('/api/status')).json();LAST=d;drawRadar(d);drawDrone(d);
 document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();
-tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${E(s.title)} - ${s.level.toUpperCase()}</b><span>${E(s.msg)}</span></div>`).join('');
+banner(d);tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${ICON[s.level]} ${s.level.toUpperCase()} · ${E(s.title)}</b><span>${E(s.msg)}</span></div>`).join('');
 ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
 wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td></tr>`).join('');
 lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td></tr>`).join('');
 const b=d.live.ble||{trackers:[],drones:[]};
-ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
+ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}${x.mine?' <b>(yours)</b>':''}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td><td>${k==='tracker'?`<button class=s onclick="mine('${x.addr}',${x.mine?0:1})">${x.mine?'not mine':'this is mine'}</button>`:''}</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
 }catch(e){}}
 load();setInterval(load,2500);setInterval(()=>{if(LAST)drawRadar(LAST)},120);</script>"""
 
@@ -149,6 +171,15 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
         def do_POST(self):
             if not self._authed() or self.headers.get("X-Homewatch") != "1":
                 return self._send(403, "{}")  # custom header forces a CORS preflight -> cross-site POSTs die
+            if self.path.startswith("/api/mine"):
+                q = parse_qs(urlparse(self.path).query)
+                addr = (q.get("addr", [""])[0]).upper()
+                if not re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", addr):
+                    return self._send(400, '{"error":"bad address"}')
+                cur = set(eng.db.kv_get("ble_ignore", []))
+                (cur.add if q.get("on", ["1"])[0] == "1" else cur.discard)(addr)
+                eng.db.kv_set("ble_ignore", sorted(cur))
+                return self._send(200, '{"ok":true}')
             if self.path == "/api/beep":
                 eng.beep("dashboard")
                 eng.emit("host", "info", "beep", "x", "Sensor beep logged", cooldown=0)
