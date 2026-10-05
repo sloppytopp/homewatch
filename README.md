@@ -8,7 +8,7 @@ Run: `./homewatch.sh setup` once, then `./homewatch.sh run` -> http://127.0.0.1:
 - Dark, muted, low-glare dashboard (no flashing alerts; every status is word + icon + color) with a **Night** switch (dim red on black)
 - A plain-language banner ("All clear" / "Keeping an eye on something" / "Needs your attention") with a breathing dot and live scan ages, so you can see it is working
 - **"This is mine"** on trackers: your own Tile/AirTag stops flagging and shows as yours
-- Sister project: [homewatch-android](https://github.com/sloppytopp/homewatch-android) (private for now) - same detection on a phone, with tap-to-find, room sweeps and survey exports
+- Sister project: [homewatch-android](https://github.com/sloppytopp/homewatch-android) (public, with signed APKs on its Releases page) - same detection on a phone, with tap-to-find, room sweeps and survey exports
 
 ## Install
 `pip install homewatch` (or from source below). System packages are still needed:
