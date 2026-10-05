@@ -26,29 +26,38 @@ body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:16px system
 table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 6px;border-bottom:1px solid var(--ring)}
 button{font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
 button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);cursor:pointer}
-.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
+.tabs{display:flex;gap:6px;margin:6px 0}.tabs button{flex:1;font-size:14px;padding:8px 4px;background:var(--card);color:var(--faint)}.tabs button.on{background:var(--btn);color:var(--btnfg)}.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
 </style><div class=top><span class=dot id=hb></span><h1>Homewatch <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
-<div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
+<div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button></div>
+<div data-tab=status><div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
 <p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>
-<div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
+</div>
+<div data-tab=radar><div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
 <canvas id=radar width=640 height=640 style="width:100%;max-width:560px;display:block;margin:auto"></canvas>
 <p class=m style="font-size:12px;text-align:center">green = your network &nbsp; gray = neighbors &nbsp; amber = tracker/watch &nbsp; red = alert &nbsp; triangle = drone</p></div>
 <div class=card id=dmapcard style="display:none"><h2>Drone map <span class=m>(real positions from Remote ID)</span></h2>
 <canvas id=dmap width=640 height=480 style="width:100%;max-width:560px;display:block;margin:auto"></canvas><div id=dinfo class=m style="font-size:13px"></div></div>
-<div class=card><h2>Recent events</h2><table id=ev></table></div>
+</div>
+<div data-tab=history><div class=card><h2>Recent events</h2><table id=ev></table></div></div>
+<div data-tab=status>
 <details class=card><summary><b>If something is flagged - what to do</b></summary><div style="font-size:14px;line-height:1.5">
 <p><b>Stay calm.</b> Most alerts turn out to be ordinary: a neighbor's device, your own phone, a passing car. A single amber or red line is a reason to look, not proof that someone is targeting you.</p>
 <p><b>Tracker:</b> a tracker that stays strong for many minutes is worth finding. Use <code>homewatch find &lt;address&gt;</code> to walk toward it. Don't move or destroy it yet: photograph it where it is, note the time, and contact local law enforcement. iPhone: Find My &rarr; Items &rarr; Identify Found Item. Android: Settings &rarr; Safety &amp; emergency &rarr; Unknown tracker alerts.</p>
 <p><b>Drone:</b> a Remote ID broadcast only <i>claims</i> a drone and can be faked. Note the time and what you saw. Don't shoot at, jam or interfere with it (that is a federal crime). You can report it to local law enforcement or the FAA.</p>
 <p><b>Unknown device on your Wi-Fi:</b> look it up in your router's client list, block it, then change the Wi-Fi password and turn off WPS and any guest network you don't use.</p>
 <p><b>If you feel unsafe</b> (for example a stalker or abusive partner), contact local police or the National Domestic Violence Hotline (US: 1-800-799-7233). A quiet dashboard is not a guarantee of safety: this tool cannot see every kind of device.</p>
-</div></details>
-<div class=card><h2>Wi-Fi networks nearby</h2><table id=wifi></table></div>
+</div></details></div>
+<div data-tab=nearby><div class=card><h2>Wi-Fi networks nearby</h2><table id=wifi></table></div>
 <div class=card><h2>Devices on your network</h2><table id=lan></table></div>
-<div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div>
+<div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div></div>
 <script>
 try{if(localStorage.getItem('hw_night')==='1'){document.documentElement.classList.add('night');night.checked=true}}catch(e){}
 night.onchange=()=>{document.documentElement.classList.toggle('night',night.checked);try{localStorage.setItem('hw_night',night.checked?'1':'0')}catch(e){}};
+function showTab(t){document.querySelectorAll('[data-tab]').forEach(e=>e.style.display=e.dataset.tab===t?'':'none');
+ document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));try{localStorage.setItem('hw_tab',t)}catch(e){}}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+let T0='status';try{T0=localStorage.getItem('hw_tab')||'status'}catch(e){}showTab(['status','nearby','radar','history'].includes(T0)?T0:'status');
+const post=async u=>{await fetch(u,{method:'POST',headers:{'X-Homewatch':'1'}});load()};
 const ICON={ok:'✓',watch:'◔',alert:'▲',off:'–'};
 const ago=s=>s<60?Math.round(s)+'s':Math.floor(s/60)+'m '+Math.round(s%60)+'s';
 function banner(d){const lv=Object.values(d.state).filter(x=>x.title.indexOf('computer')<0).map(x=>x.level);const w=lv.includes('alert')?'alert':lv.includes('watch')?'watch':'ok';
@@ -57,7 +66,7 @@ function banner(d){const lv=Object.values(d.state).filter(x=>x.title.indexOf('co
  const ads=d.live.ble?' · Bluetooth: '+d.live.ble.advertisements_seen+' signals heard':'';
  b.innerHTML='<b>'+(w==='alert'?'Needs your attention':w==='watch'?'Keeping an eye on something':'All clear')+'</b><span>Scanning for '+ago(d.now-(d.started||d.now))+wa+ads+'</span>'}
 const E=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-let LAST=null;
+let LAST=null,MY=new Set();
 async function mine(a,on){await fetch('/api/mine?addr='+encodeURIComponent(a)+'&on='+on,{method:'POST',headers:{'X-Homewatch':'1'}});load()}
 const C=()=>getComputedStyle(document.documentElement);
 function hash(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))>>>0;return h}
@@ -99,12 +108,12 @@ function drawDrone(d){const fixes=[].concat(...Object.values(d.live.drone_fixes|
   if(f.op_lat){const [ox,oy]=toM(f.op_lat,f.op_lon,H);x.fillStyle='#d29922';x.beginPath();x.arc(cx+ox*sc,cy-oy*sc,7,0,7);x.fill();x.strokeStyle='#d29922';x.beginPath();x.moveTo(px,py);x.lineTo(cx+ox*sc,cy-oy*sc);x.stroke()}
   info.push(`Drone ${E(f.id)}: ${dist} m ${['N','NE','E','SE','S','SW','W','NW'][Math.round(brg/45)%8]} of home, alt ${f.alt??'?'} m`+(f.op_lat?' (amber dot = operator)':'')+` - <a href="https://www.openstreetmap.org/?mlat=${f.lat}&mlon=${f.lon}#map=17/${f.lat}/${f.lon}" target=_blank>open in map</a>`)});
  dinfo.innerHTML=info.join('<br>')}
-async function load(){try{const d=await (await fetch('/api/status')).json();LAST=d;drawRadar(d);drawDrone(d);
+async function load(){try{const d=await (await fetch('/api/status')).json();LAST=d;MY=new Set(d.my_ssids||[]);drawRadar(d);drawDrone(d);
 document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();
 banner(d);tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${ICON[s.level]} ${s.level.toUpperCase()} · ${E(s.title)}</b><span>${E(s.msg)}</span></div>`).join('');
 ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
-wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td></tr>`).join('');
-lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td></tr>`).join('');
+wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td><td>${w.ssid?(MY.has(w.ssid)?`<b>(yours)</b> <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">not mine</button>`:`<button class=s onclick="post('/api/mynet?on=1&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">this is my network</button>`):''}</td></tr>`).join('');
+lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td><td>${w.trusted?'<b>(known)</b> ':''}<button class=s onclick="post('/api/trust?on=${w.trusted?0:1}&mac=${w.mac}')">${w.trusted?'not known':'I know this device'}</button></td></tr>`).join('');
 const b=d.live.ble||{trackers:[],drones:[]};
 ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}${x.mine?' <b>(yours)</b>':''}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td><td>${k==='tracker'?`<button class=s onclick="mine('${x.addr}',${x.mine?0:1})">${x.mine?'not mine':'this is mine'}</button>`:''}</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
 }catch(e){}}
@@ -179,6 +188,25 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
                 cur = set(eng.db.kv_get("ble_ignore", []))
                 (cur.add if q.get("on", ["1"])[0] == "1" else cur.discard)(addr)
                 eng.db.kv_set("ble_ignore", sorted(cur))
+                return self._send(200, '{"ok":true}')
+            if self.path.startswith("/api/trust"):
+                q = parse_qs(urlparse(self.path).query)
+                mac = (q.get("mac", [""])[0]).lower()
+                if not re.fullmatch(r"[0-9a-f]{2}(:[0-9a-f]{2}){5}", mac):
+                    return self._send(400, '{"error":"bad mac"}')
+                eng.db.exec("UPDATE devices SET trusted=? WHERE mac=?", (1 if q.get("on", ["1"])[0] == "1" else 0, mac))
+                return self._send(200, '{"ok":true}')
+            if self.path.startswith("/api/mynet"):
+                from .core import load_config, save_config
+                q = parse_qs(urlparse(self.path).query)
+                ssid = q.get("ssid", [""])[0]
+                if not ssid or len(ssid.encode()) > 32 or any(ord(c) < 32 for c in ssid):
+                    return self._send(400, '{"error":"bad ssid"}')
+                cfg = load_config()
+                cur = set(cfg.get("my_ssids", []))
+                (cur.add if q.get("on", ["1"])[0] == "1" else cur.discard)(ssid)
+                cfg["my_ssids"] = sorted(cur)
+                save_config(cfg)
                 return self._send(200, '{"ok":true}')
             if self.path == "/api/beep":
                 eng.beep("dashboard")

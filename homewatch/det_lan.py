@@ -117,7 +117,8 @@ class LanDetector:
                 eng.db.exec("UPDATE devices SET last_seen=?, ip=?, klass=?, ports=? WHERE mac=?",
                             (now, ip, klass, ",".join(map(str, pts)), mac))
             inventory.append({"ip": ip, "mac": mac, "vendor": ven, "klass": klass,
-                              "ports": pts, "gateway": ip == gw})
+                              "ports": pts, "gateway": ip == gw,
+                              "trusted": bool(known.get(mac, {}).get("trusted"))})
             if klass.startswith("camera") or pts:
                 cams.append(inventory[-1])
         # --- status
