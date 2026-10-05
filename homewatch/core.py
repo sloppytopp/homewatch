@@ -115,7 +115,7 @@ class Engine:
             self.state[domain] = {"level": worst[0], "msg": worst[1], "ts": time.time()}
             cur = worst[0]
         if cur == "alert" and prev != "alert":
-            self.notify(f"HOMEWATCH ALERT: {DOMAINS[domain]}", worst[1], push=PUSH_TEXT.get(domain))
+            self.notify(f"N0RMA ALERT: {DOMAINS[domain]}", worst[1], push=PUSH_TEXT.get(domain))
 
     # -- events -------------------------------------------------------
     def emit(self, domain, level, kind, key, msg, detail=None, cooldown=600):
@@ -137,7 +137,7 @@ class Engine:
         self.db.exec("INSERT INTO beeps(ts,note) VALUES(?,?)", (ts or time.time(), note))
 
     # -- alerting -----------------------------------------------------
-    def push(self, text, title="Homewatch"):
+    def push(self, text, title="N0RMA"):
         """Phone alert via ntfy.sh. Off until `homewatch ntfy on`. Never includes MACs/coordinates."""
         cfg = load_config().get("ntfy", {})
         if self.quiet or not (cfg.get("enabled") and cfg.get("topic")):

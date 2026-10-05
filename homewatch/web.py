@@ -5,7 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>Homewatch</title><style>
+<title>N0RMA</title><style>
 :root{--bg:#000;--fg:#c8c8c8;--mut:#8a8a8a;--faint:#6a6a6a;--card:#0e0e0e;--ring:#2a2a2a;
 --okbg:#0f1d15;--watchbg:#211b0d;--alertbg:#2a1313;--offbg:#141414;--ok:#5e9a74;--watch:#b39a55;--alert:#c06a6a;--off:#7a7a7a;--btn:#1c2a22;--btnfg:#9cc7ab}
 html.night{--fg:#8c3030;--mut:#722b2b;--faint:#5a2222;--card:#0a0303;--ring:#2a0d0d;--okbg:#0c0404;--watchbg:#0c0404;--alertbg:#0c0404;--offbg:#0c0404;
@@ -27,7 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 6px;bord
 button{font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
 button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);cursor:pointer}
 .tabs{display:flex;gap:6px;margin:6px 0}.tabs button{flex:1;font-size:14px;padding:8px 4px;background:var(--card);color:var(--faint)}.tabs button.on{background:var(--btn);color:var(--btnfg)}.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
-</style><div class=top><span class=dot id=hb></span><h1>Homewatch <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
+</style><div class=top><span class=dot id=hb></span><h1>N0RMA <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
 <div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button></div>
 <div data-tab=status><div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
 <p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>

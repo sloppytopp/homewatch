@@ -36,7 +36,7 @@ def cmd_run(a):
         token = cfg.setdefault("dashboard_key", new_token())
         save_config(cfg)
     web.serve(eng, "0.0.0.0" if a.lan else "127.0.0.1", a.port, token)
-    print(f"Homewatch running. Dashboard: http://127.0.0.1:{a.port}")
+    print(f"N0RMA running. Dashboard: http://127.0.0.1:{a.port}")
     if a.lan:
         import subprocess
         ip = subprocess.run("hostname -I", shell=True, capture_output=True, text=True).stdout.split()[0]
@@ -182,8 +182,8 @@ def cmd_ntfy(a):
         save_config(cfg)
         print("Phone alerts", "ON" if n["enabled"] else "OFF")
     elif a.action == "test":
-        req = urllib.request.Request(f"https://ntfy.sh/{n['topic']}", data=b"Homewatch test: phone alerts work.",
-                                     headers={"Title": "Homewatch"}, method="POST")
+        req = urllib.request.Request(f"https://ntfy.sh/{n['topic']}", data=b"N0RMA test: phone alerts work.",
+                                     headers={"Title": "N0RMA"}, method="POST")
         urllib.request.urlopen(req, timeout=10).read()
         print("Test message sent. Check your phone.")
 
@@ -194,7 +194,7 @@ def cmd_setup(a):
     import subprocess
     from . import det_lan
     cfg = load_config()
-    print("Homewatch setup - takes about a minute.\n")
+    print("N0RMA setup - takes about a minute.\n")
     out = subprocess.run(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"], capture_output=True, text=True).stdout
     mine = sorted({l.split(":", 1)[1] for l in out.splitlines() if l.startswith("yes:") and l.split(":", 1)[1]})
     if mine:

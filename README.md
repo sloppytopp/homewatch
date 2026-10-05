@@ -13,7 +13,7 @@ Run: `./homewatch.sh setup` once, then `./homewatch.sh run` -> http://127.0.0.1:
 ## Install
 `pip install homewatch` (or from source below). System packages are still needed:
 `sudo apt install ieee-data nmap iw network-manager bluez` (the vendor database from `ieee-data`/`nmap` is required for
-camera/drone vendor detection - Homewatch warns at startup if it is missing), then
+camera/drone vendor detection - N0RMA warns at startup if it is missing), then
 `python3 -m venv .venv --system-site-packages && .venv/bin/pip install bleak`.
 Optional RF module: `sudo apt install rtl-sdr` + an RTL-SDR dongle (24 MHz-1.7 GHz only; not 2.4/5.8 GHz).
 
