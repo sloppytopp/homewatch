@@ -377,3 +377,12 @@ class Privacy(unittest.TestCase):
         self.assertNotIn("-85.2", blob)
         self.assertIn("operator", eng.state["drone"]["msg"])  # still shown live
         self.assertIn("CLAIMS", rows[0]["msg"])
+
+
+def test_port_class_virtual_bridge_and_mdns_are_info():
+    from homewatch.det_host import port_class
+    assert port_class("tcp [fe80::60cc:c6ff:fed2:caf9]%pan1:53 ?") == "info"
+    assert port_class("udp 224.0.0.251:5353 chrome") == "info"
+    assert port_class("udp 0.0.0.0:5353 adb") == "info"
+    assert port_class("tcp 0.0.0.0:8080 python") == "alert"
+    assert port_class("tcp [fe80::1]%wlp1s0:53 ?") == "alert"

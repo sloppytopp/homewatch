@@ -45,12 +45,19 @@ def audio_recorders():
 LAN_DISCOVERY_UDP = {5353, 5355, 3702, 1900, 67, 68, 546, 547}
 
 
+# Virtual bridges (Bluetooth PAN, libvirt, Docker) run their own DHCP/DNS for tethering/containers; not an exposure to the real LAN.
+VIRTUAL_IFACE = re.compile(r"^(pan|virbr|docker|br-|veth|lxcbr)")
+
+
 def port_class(entry):
     """'info' = harmless-looking (loopback-only, or ordinary LAN discovery); 'alert' = reachable from other machines."""
     proto, addr, *_ = entry.split(None, 2)
     host, _, port = addr.rpartition(":")
     host = host.strip("[]")
     if host.startswith("127.") or host == "::1":
+        return "info"
+    iface = host.partition("%")[2]
+    if iface and VIRTUAL_IFACE.match(iface):
         return "info"
     if proto.startswith("udp") and port.isdigit() and int(port) in LAN_DISCOVERY_UDP:
         return "info"
