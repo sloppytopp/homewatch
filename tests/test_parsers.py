@@ -386,3 +386,9 @@ def test_port_class_virtual_bridge_and_mdns_are_info():
     assert port_class("udp 0.0.0.0:5353 adb") == "info"
     assert port_class("tcp 0.0.0.0:8080 python") == "alert"
     assert port_class("tcp [fe80::1]%wlp1s0:53 ?") == "alert"
+
+
+def test_port_class_ipv4_mapped_loopback_is_info():
+    from homewatch.det_host import port_class
+    assert port_class("tcp [::ffff:127.0.0.1]:44131 java") == "info"
+    assert port_class("tcp [::ffff:192.168.0.5]:8080 java") == "alert"

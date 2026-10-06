@@ -54,6 +54,8 @@ def port_class(entry):
     proto, addr, *_ = entry.split(None, 2)
     host, _, port = addr.rpartition(":")
     host = host.strip("[]")
+    if host.lower().startswith("::ffff:"):   # IPv4-mapped form, e.g. [::ffff:127.0.0.1]
+        host = host[7:]
     if host.startswith("127.") or host == "::1":
         return "info"
     iface = host.partition("%")[2]
