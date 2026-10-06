@@ -112,7 +112,7 @@ async function load(){try{const d=await (await fetch('/api/status')).json();LAST
 document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();
 banner(d);tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${ICON[s.level]} ${s.level.toUpperCase()} · ${E(s.title)}</b><span>${E(s.msg)}</span></div>`).join('');
 ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
-wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td><td>${w.ssid?(MY.has(w.ssid)?`<b>(yours)</b> <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">not mine</button>`:`<button class=s onclick="post('/api/mynet?on=1&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">this is my network</button>`):''}</td></tr>`).join('');
+wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td><td>${w.ssid&&w.ssid!=='(hidden)'?(MY.has(w.ssid)?`<b>(yours)</b> <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">not mine</button>`:`<button class=s onclick="post('/api/mynet?on=1&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">this is my network</button>`):''}</td></tr>`).join('');
 lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td><td>${w.trusted?'<b>(known)</b> ':''}<button class=s onclick="post('/api/trust?on=${w.trusted?0:1}&mac=${w.mac}')">${w.trusted?'not known':'I know this device'}</button></td></tr>`).join('');
 const b=d.live.ble||{trackers:[],drones:[]};
 ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}${x.mine?' <b>(yours)</b>':''}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td><td>${k==='tracker'?`<button class=s onclick="mine('${x.addr}',${x.mine?0:1})">${x.mine?'not mine':'this is mine'}</button>`:''}</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
@@ -200,7 +200,7 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
                 from .core import load_config, save_config
                 q = parse_qs(urlparse(self.path).query)
                 ssid = q.get("ssid", [""])[0]
-                if not ssid or len(ssid.encode()) > 32 or any(ord(c) < 32 for c in ssid):
+                if not ssid or ssid == "(hidden)" or len(ssid.encode()) > 32 or any(ord(c) < 32 for c in ssid):
                     return self._send(400, '{"error":"bad ssid"}')
                 cfg = load_config()
                 cur = set(cfg.get("my_ssids", []))
