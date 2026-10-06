@@ -392,3 +392,16 @@ def test_port_class_ipv4_mapped_loopback_is_info():
     from n0rma.det_host import port_class
     assert port_class("tcp [::ffff:127.0.0.1]:44131 java") == "info"
     assert port_class("tcp [::ffff:192.168.0.5]:8080 java") == "alert"
+
+
+def test_device_labels_survive_and_old_db_is_migrated(tmp_path):
+    import sqlite3
+    from n0rma.core import DB
+    p = str(tmp_path / "old.db")
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE devices(mac TEXT PRIMARY KEY, first_seen REAL, last_seen REAL, ip TEXT, vendor TEXT, klass TEXT, ports TEXT, trusted INTEGER DEFAULT 0)")
+    c.execute("INSERT INTO devices(mac,ip) VALUES('aa:bb:cc:dd:ee:ff','1.1.1.1')")
+    c.commit(); c.close()
+    db = DB(p)   # opening an old database adds the new columns
+    db.exec("UPDATE devices SET label=? WHERE mac=?", ("Dance machine", "aa:bb:cc:dd:ee:ff"))
+    assert db.query("SELECT label,hostname FROM devices")[0] == {"label": "Dance machine", "hostname": ""}

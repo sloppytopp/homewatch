@@ -36,6 +36,19 @@ def ping(ip):
     subprocess.run(["ping", "-c", "1", "-W", "1", str(ip)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def lookup_hostname(ip):
+    """Best-effort name for a LAN device: router DNS first, then mDNS (.local). Empty string if nobody answers."""
+    for cmd, pick in ((["getent", "hosts", ip], lambda o: o.split()[1:2]), (["avahi-resolve", "-a", ip], lambda o: o.split()[1:2])):
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            continue
+        name = (pick(out) or [""])[0].removesuffix(".local").strip()
+        if name and name != ip:
+            return name[:60]
+    return ""
+
+
 def probe_ports(ip, ports=tuple(VIDEO_PORTS)):
     found = {}
     for p in ports:
@@ -100,6 +113,9 @@ class LanDetector:
         known = {d["mac"]: d for d in eng.db.query("SELECT * FROM devices")}
         with cf.ThreadPoolExecutor(32) as ex:
             ports = dict(zip(neigh, ex.map(probe_ports, neigh)))
+        need = [ip for ip, mac in neigh.items() if not (known.get(mac) or {}).get("hostname")]
+        with cf.ThreadPoolExecutor(8) as ex:
+            names = dict(zip(need, ex.map(lookup_hostname, need)))
         cams, newcomers, inventory = [], [], []
         for ip, mac in neigh.items():
             ven = oui.vendor(mac)
@@ -116,9 +132,14 @@ class LanDetector:
             else:
                 eng.db.exec("UPDATE devices SET last_seen=?, ip=?, klass=?, ports=? WHERE mac=?",
                             (now, ip, klass, ",".join(map(str, pts)), mac))
+                if names.get(ip):
+                    eng.db.exec("UPDATE devices SET hostname=? WHERE mac=?", (names[ip], mac))
+                    known[mac]["hostname"] = names[ip]
             inventory.append({"ip": ip, "mac": mac, "vendor": ven, "klass": klass,
                               "ports": pts, "gateway": ip == gw,
-                              "trusted": bool(known.get(mac, {}).get("trusted"))})
+                              "trusted": bool(known.get(mac, {}).get("trusted")),
+                              "label": known.get(mac, {}).get("label") or "",
+                              "hostname": known.get(mac, {}).get("hostname") or names.get(ip, "")})
             if klass.startswith("camera") or pts:
                 cams.append(inventory[-1])
         # --- status

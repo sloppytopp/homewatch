@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, ts REAL, domain TEXT,
 CREATE INDEX IF NOT EXISTS ev_ts ON events(ts);
 CREATE TABLE IF NOT EXISTS beeps(id INTEGER PRIMARY KEY, ts REAL, note TEXT);
 CREATE TABLE IF NOT EXISTS devices(mac TEXT PRIMARY KEY, first_seen REAL, last_seen REAL,
-  ip TEXT, vendor TEXT, klass TEXT, ports TEXT, trusted INTEGER DEFAULT 0);
+  ip TEXT, vendor TEXT, klass TEXT, ports TEXT, trusted INTEGER DEFAULT 0,
+  label TEXT DEFAULT '', hostname TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
 """
 
@@ -78,6 +79,11 @@ class DB:
         self.lock = threading.Lock()
         with self.lock:
             self.c.executescript(SCHEMA)
+            have = {r[1] for r in self.c.execute("PRAGMA table_info(devices)")}
+            for col in ("label", "hostname"):   # databases created before device names existed
+                if col not in have:
+                    self.c.execute(f"ALTER TABLE devices ADD COLUMN {col} TEXT DEFAULT ''")
+            self.c.commit()
 
     def exec(self, sql, args=()):
         with self.lock:

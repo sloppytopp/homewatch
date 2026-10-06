@@ -108,8 +108,9 @@ def cmd_devices(a):
     rows = DB().query("SELECT * FROM devices ORDER BY trusted, klass DESC, ip")
     for d in rows:
         t = "trusted " if d["trusted"] else "UNREVIEWED"
-        print(f"{t} {d['ip']:15} {d['mac']} {d['klass']:8} {d['vendor'][:34]:34} ports:{d['ports'] or '-'}")
-    print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>")
+        name = d.get("label") or d.get("hostname") or ""
+        print(f"{t} {d['ip']:15} {d['mac']} {name[:22]:22} {d['klass']:8} {d['vendor'][:28]:28} ports:{d['ports'] or '-'}")
+    print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>   |   give one a name:  n0rma name <mac> Missy iPhone")
 
 
 def cmd_trust(a):
@@ -119,6 +120,14 @@ def cmd_trust(a):
     else:
         db.exec("UPDATE devices SET trusted=1 WHERE mac=?", (a.mac.lower(),))
     print("ok")
+
+
+def cmd_name(a):
+    label = " ".join(a.label).strip()[:40]
+    if any(ord(c) < 32 for c in label):
+        sys.exit("Names can't contain control characters.")
+    DB().exec("UPDATE devices SET label=? WHERE mac=?", (label, a.mac.lower()))
+    print("ok" if label else "name cleared")
 
 
 def cmd_ignore(a):
@@ -319,6 +328,10 @@ def main():
     t = sp.add_parser("trust", help="mark LAN device(s) as yours")
     t.add_argument("mac")
     t.set_defaults(f=cmd_trust)
+    nm = sp.add_parser("name", help="give a LAN device a name you will recognise")
+    nm.add_argument("mac")
+    nm.add_argument("label", nargs="*", help="empty clears the name")
+    nm.set_defaults(f=cmd_name)
     i = sp.add_parser("ignore", help="mute a BLE address (your own tracker)")
     i.add_argument("addr")
     i.set_defaults(f=cmd_ignore)
