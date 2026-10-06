@@ -14,7 +14,7 @@ Run: `./n0rma.sh setup` once, then `./n0rma.sh run` -> http://127.0.0.1:8777
 - Sister project: [n0rma-android](https://github.com/sloppytopp/n0rma-android) (public, with signed APKs on its Releases page) - same detection on a phone, with tap-to-find, room sweeps and survey exports
 
 ## Install
-`pip install n0rma` (or from source below). System packages are still needed:
+`pip install n0rma-sec` (the command it installs is `n0rma`) (or from source below). System packages are still needed:
 `sudo apt install ieee-data nmap iw network-manager bluez` (the vendor database from `ieee-data`/`nmap` is required for
 camera/drone vendor detection - N0RMA warns at startup if it is missing), then
 `python3 -m venv .venv --system-site-packages && .venv/bin/pip install bleak`.
