@@ -127,9 +127,9 @@ class LanDetector:
         if any(d["klass"].startswith("camera") for d in fresh):
             d = next(d for d in fresh if d["klass"].startswith("camera"))
             eng.status("network", "alert", f"Untrusted camera-class device {d['ip']} {d['mac']} ({d['vendor']}). "
-                       f"Run: homewatch trust {d['mac']} if it's yours", "lan")
+                       f"Run: n0rma trust {d['mac']} if it's yours", "lan")
         elif fresh:
-            eng.status("network", "watch", f"{len(fresh)} device(s) on your network not yet reviewed - run: homewatch setup", "lan")
+            eng.status("network", "watch", f"{len(fresh)} device(s) on your network not yet reviewed - run: n0rma setup", "lan")
         else:
             note = f"; {len(cams)} camera-class/video-port device(s) are in your trusted list" if cams else ""
             eng.status("network", "ok", f"{len(neigh)} devices on LAN, all known{note}", "lan")
@@ -138,5 +138,5 @@ class LanDetector:
             eng.db.kv_set("lan_subnet", cur)
             self.baseline_done = True
             eng.emit("network", "info", "lan_baseline", "x",
-                     f"Baseline recorded: {len(neigh)} devices on LAN (review with: homewatch devices)", cooldown=0)
+                     f"Baseline recorded: {len(neigh)} devices on LAN (review with: n0rma devices)", cooldown=0)
         eng.live["lan"] = inventory

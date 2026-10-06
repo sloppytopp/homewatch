@@ -30,7 +30,7 @@ def cmd_run(a):
         if mine:
             cfg["my_ssids"] = mine
             save_config(cfg)
-            print(f"Learned your Wi-Fi name(s): {', '.join(mine)}  (edit my_ssids in {__import__('homewatch.core', fromlist=['x']).CONFIG_PATH})")
+            print(f"Learned your Wi-Fi name(s): {', '.join(mine)}  (edit my_ssids in {__import__('n0rma.core', fromlist=['x']).CONFIG_PATH})")
     token = None
     if a.lan:
         token = cfg.setdefault("dashboard_key", new_token())
@@ -43,7 +43,7 @@ def cmd_run(a):
         print(f"Phone (same Wi-Fi): http://{ip}:{a.port}/?k={token}   <- keep this link private")
     if a.lan:
         print("NOTE: --lan is plain HTTP. Anyone sniffing your Wi-Fi could see the link/token. Use only on a network you trust.")
-    print(f"Phone alerts: {'ON' if cfg.get('ntfy', {}).get('enabled') else 'off (see: homewatch ntfy setup)'}\n"
+    print(f"Phone alerts: {'ON' if cfg.get('ntfy', {}).get('enabled') else 'off (see: n0rma ntfy setup)'}\n"
           "Type  b + Enter  when the sensor beeps.  Ctrl-C to stop.", flush=True)
 
     def keys():
@@ -74,7 +74,7 @@ def cmd_report(a):
     since = time.time() - a.hours * 3600
     beeps = db.query("SELECT * FROM beeps WHERE ts>? ORDER BY ts", (since,))
     if not beeps:
-        print("No beeps logged in that window. Log them with: homewatch beep   (or 'b' in `run`)")
+        print("No beeps logged in that window. Log them with: n0rma beep   (or 'b' in `run`)")
     hits = 0
     for b in beeps:
         near = db.query("SELECT * FROM events WHERE ts BETWEEN ? AND ? AND level IN ('alert','watch') "
@@ -109,7 +109,7 @@ def cmd_devices(a):
     for d in rows:
         t = "trusted " if d["trusted"] else "UNREVIEWED"
         print(f"{t} {d['ip']:15} {d['mac']} {d['klass']:8} {d['vendor'][:34]:34} ports:{d['ports'] or '-'}")
-    print("\nMark yours as trusted:  homewatch trust all   |   homewatch trust <mac>")
+    print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>")
 
 
 def cmd_trust(a):
@@ -157,7 +157,7 @@ def cmd_home(a):
         save_config(cfg)
     print("Home location:", cfg.get("home") or "not set",
           "\nTip: for exact position, long-press your house in Google/Apple Maps and copy the two numbers, then:"
-          "\n  homewatch home <lat> <lon>")
+          "\n  n0rma home <lat> <lon>")
 
 
 def cmd_ntfy(a):
@@ -165,18 +165,18 @@ def cmd_ntfy(a):
     cfg = load_config()
     n = cfg.setdefault("ntfy", {})
     if a.action == "setup":
-        n["topic"] = n.get("topic") or "homewatch-" + new_token()
+        n["topic"] = n.get("topic") or "n0rma-" + new_token()
         n.setdefault("enabled", False)
         save_config(cfg)
         print(f"Topic created: {n['topic']}\n"
               "1. Install the free 'ntfy' app (iOS App Store / Android Play Store).\n"
               f"2. In the app tap + and subscribe to topic:  {n['topic']}   (server: ntfy.sh)\n"
-              "3. Then run:  homewatch ntfy test   (sends one test message)\n"
-              "4. Then run:  homewatch ntfy on\n"
+              "3. Then run:  n0rma ntfy test   (sends one test message)\n"
+              "4. Then run:  n0rma ntfy on\n"
               "Note: the topic name is the only 'password', so keep it private. Pushes are generic - never MACs or coordinates.")
         return
     if not n.get("topic"):
-        sys.exit("Run first:  homewatch ntfy setup")
+        sys.exit("Run first:  n0rma ntfy setup")
     if a.action in ("on", "off"):
         n["enabled"] = a.action == "on"
         save_config(cfg)
@@ -231,7 +231,7 @@ def cmd_setup(a):
             eng.db.exec("UPDATE devices SET trusted=1 WHERE mac=?", (d["mac"],))
     left = eng.db.query("SELECT COUNT(*) n FROM devices WHERE trusted=0")[0]["n"]
     print(f"\nDone. {left} device(s) left unreviewed - they will show amber until you identify them "
-          "(your router's client list can help).\nStart with:  homewatch run")
+          "(your router's client list can help).\nStart with:  n0rma run")
 
 
 def cmd_rebaseline(a):
@@ -250,7 +250,7 @@ def cmd_forget_network(a):
     db.exec("DELETE FROM devices")
     db.kv_set("lan_baseline", False)
     db.exec("DELETE FROM kv WHERE k='lan_subnet'")
-    print("Forgot the home network. The next `homewatch setup` / `run` learns the current one.")
+    print("Forgot the home network. The next `n0rma setup` / `run` learns the current one.")
 
 
 def cmd_scan(a):
@@ -293,8 +293,14 @@ def cmd_selftest(a):
     sys.exit(unittest.main(module=None, argv=["x", "discover", "-s", "tests", "-t", "."]))
 
 
+def legacy():
+    """Old `homewatch` command: still works, but says it was renamed."""
+    print("note: homewatch is now called n0rma - use `n0rma` from now on.", file=sys.stderr)
+    main()
+
+
 def main():
-    p = argparse.ArgumentParser(prog="homewatch", description="Home counter-surveillance detector")
+    p = argparse.ArgumentParser(prog="n0rma", description="Home counter-surveillance detector")
     sp = p.add_subparsers(dest="cmd", required=True)
     r = sp.add_parser("run", help="run all detectors + dashboard")
     r.add_argument("--lan", action="store_true", help="serve dashboard to phones on your LAN")

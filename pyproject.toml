@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "homewatch"
-version = "0.2.1"
+name = "n0rma"
+version = "0.3.0"
 description = "Home counter-surveillance detector for Linux: Remote ID drones, Bluetooth trackers, unknown devices, RF."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,11 +18,12 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sloppytopp/homewatch"
-Issues = "https://github.com/sloppytopp/homewatch/issues"
+Homepage = "https://github.com/sloppytopp/n0rma"
+Issues = "https://github.com/sloppytopp/n0rma/issues"
 
 [project.scripts]
-homewatch = "homewatch.cli:main"
+n0rma = "n0rma.cli:main"
+homewatch = "n0rma.cli:legacy"   # old name, kept so existing installs keep working
 
 [tool.setuptools]
-packages = ["homewatch"]
+packages = ["n0rma"]

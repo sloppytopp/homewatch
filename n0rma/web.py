@@ -42,7 +42,7 @@ button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);
 <div data-tab=status>
 <details class=card><summary><b>If something is flagged - what to do</b></summary><div style="font-size:14px;line-height:1.5">
 <p><b>Stay calm.</b> Most alerts turn out to be ordinary: a neighbor's device, your own phone, a passing car. A single amber or red line is a reason to look, not proof that someone is targeting you.</p>
-<p><b>Tracker:</b> a tracker that stays strong for many minutes is worth finding. Use <code>homewatch find &lt;address&gt;</code> to walk toward it. Don't move or destroy it yet: photograph it where it is, note the time, and contact local law enforcement. iPhone: Find My &rarr; Items &rarr; Identify Found Item. Android: Settings &rarr; Safety &amp; emergency &rarr; Unknown tracker alerts.</p>
+<p><b>Tracker:</b> a tracker that stays strong for many minutes is worth finding. Use <code>n0rma find &lt;address&gt;</code> to walk toward it. Don't move or destroy it yet: photograph it where it is, note the time, and contact local law enforcement. iPhone: Find My &rarr; Items &rarr; Identify Found Item. Android: Settings &rarr; Safety &amp; emergency &rarr; Unknown tracker alerts.</p>
 <p><b>Drone:</b> a Remote ID broadcast only <i>claims</i> a drone and can be faked. Note the time and what you saw. Don't shoot at, jam or interfere with it (that is a federal crime). You can report it to local law enforcement or the FAA.</p>
 <p><b>Unknown device on your Wi-Fi:</b> look it up in your router's client list, block it, then change the Wi-Fi password and turn off WPS and any guest network you don't use.</p>
 <p><b>If you feel unsafe</b> (for example a stalker or abusive partner), contact local police or the National Domestic Violence Hotline (US: 1-800-799-7233). A quiet dashboard is not a guarantee of safety: this tool cannot see every kind of device.</p>
@@ -162,7 +162,7 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
         def do_GET(self):
             path = urlparse(self.path).path
             if not self._authed():
-                return self._send(401, "Locked. Open the full link printed by homewatch (it ends in ?k=...).", "text/plain")
+                return self._send(401, "Locked. Open the full link printed by n0rma (it ends in ?k=...).", "text/plain")
             if path == "/api/status":
                 self._send(200, json.dumps(eng.snapshot(), default=str))
             elif path == "/":

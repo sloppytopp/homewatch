@@ -1,8 +1,8 @@
 import struct
 import unittest
 
-from homewatch import remoteid, det_ble, det_wifi, det_lan, det_sdr, oui
-from homewatch.core import DB, Engine
+from n0rma import remoteid, det_ble, det_wifi, det_lan, det_sdr, oui
+from n0rma.core import DB, Engine
 
 
 def loc_msg(lat, lon):
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
 class WebSecurity(unittest.TestCase):
     def _srv(self, token):
-        from homewatch import web
+        from n0rma import web
         eng = Engine(DB(":memory:"), quiet=True)
         srv = web.serve(eng, "127.0.0.1", 0, token)
         return eng, srv, srv.server_address[1]
@@ -255,7 +255,7 @@ class MineFeature(unittest.TestCase):
         self.assertTrue(eng.live["ble"]["trackers"][0]["mine"])
 
     def test_mine_api_needs_header_and_valid_address(self):
-        from homewatch import web
+        from n0rma import web
         import http.client
         eng = Engine(DB(":memory:"), quiet=True)
         srv = web.serve(eng, "127.0.0.1", 0, None)
@@ -275,7 +275,7 @@ class MineFeature(unittest.TestCase):
         srv.shutdown(); srv.server_close()
 
     def test_page_has_banner_night_and_no_flashing_alerts(self):
-        from homewatch.web import PAGE
+        from n0rma.web import PAGE
         self.assertIn('id=banner', PAGE); self.assertIn('id=night', PAGE)
         self.assertNotIn("brightness(1.35)", PAGE)                       # old bright pulsing alert is gone
 
@@ -312,7 +312,7 @@ class DeafScannerWatchdog(unittest.TestCase):
 
 class HostNoise(unittest.TestCase):
     def test_port_classes(self):
-        from homewatch import det_host as h
+        from n0rma import det_host as h
         self.assertEqual(h.port_class("tcp 127.0.0.1:5037 adb"), "info")           # adb server, loopback only
         self.assertEqual(h.port_class("udp 224.0.0.251:5353 chrome"), "info")      # mDNS
         self.assertEqual(h.port_class("udp *:5353 adb"), "info")
@@ -321,7 +321,7 @@ class HostNoise(unittest.TestCase):
         self.assertEqual(h.port_class("tcp *:22 sshd"), "alert")
 
     def _host(self, ports, usb):
-        from homewatch import det_host as h
+        from n0rma import det_host as h
         eng = Engine(DB(":memory:"), quiet=True)
         det = h.HostDetector(eng)
         h.listening = lambda: set(ports)
@@ -380,7 +380,7 @@ class Privacy(unittest.TestCase):
 
 
 def test_port_class_virtual_bridge_and_mdns_are_info():
-    from homewatch.det_host import port_class
+    from n0rma.det_host import port_class
     assert port_class("tcp [fe80::60cc:c6ff:fed2:caf9]%pan1:53 ?") == "info"
     assert port_class("udp 224.0.0.251:5353 chrome") == "info"
     assert port_class("udp 0.0.0.0:5353 adb") == "info"
@@ -389,6 +389,6 @@ def test_port_class_virtual_bridge_and_mdns_are_info():
 
 
 def test_port_class_ipv4_mapped_loopback_is_info():
-    from homewatch.det_host import port_class
+    from n0rma.det_host import port_class
     assert port_class("tcp [::ffff:127.0.0.1]:44131 java") == "info"
     assert port_class("tcp [::ffff:192.168.0.5]:8080 java") == "alert"

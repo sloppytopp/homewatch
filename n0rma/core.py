@@ -9,7 +9,16 @@ import subprocess
 import threading
 import time
 
-DATA_DIR = os.environ.get("HOMEWATCH_DIR") or os.path.expanduser("~/.local/share/homewatch")
+def _data_dir():
+    """N0RMA_DIR (or the old HOMEWATCH_DIR); else keep using an existing pre-rename folder so nothing is lost."""
+    env = os.environ.get("N0RMA_DIR") or os.environ.get("HOMEWATCH_DIR")
+    if env:
+        return env
+    old, new = (os.path.expanduser(f"~/.local/share/{n}") for n in ("homewatch", "n0rma"))
+    return old if os.path.isdir(old) and not os.path.isdir(new) else new
+
+
+DATA_DIR = _data_dir()
 DOMAINS = {
     "drone": "Drone near the house?",
     "tracker": "Active tracker present?",
@@ -62,7 +71,8 @@ CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
 class DB:
     def __init__(self, path=None):
         os.makedirs(DATA_DIR, exist_ok=True)
-        self.path = path or os.path.join(DATA_DIR, "homewatch.db")
+        old_db = os.path.join(DATA_DIR, "homewatch.db")
+        self.path = path or (old_db if os.path.exists(old_db) else os.path.join(DATA_DIR, "n0rma.db"))
         self.c = sqlite3.connect(self.path, check_same_thread=False)
         self.c.row_factory = sqlite3.Row
         self.lock = threading.Lock()
@@ -138,7 +148,7 @@ class Engine:
 
     # -- alerting -----------------------------------------------------
     def push(self, text, title="N0RMA"):
-        """Phone alert via ntfy.sh. Off until `homewatch ntfy on`. Never includes MACs/coordinates."""
+        """Phone alert via ntfy.sh. Off until `n0rma ntfy on`. Never includes MACs/coordinates."""
         cfg = load_config().get("ntfy", {})
         if self.quiet or not (cfg.get("enabled") and cfg.get("topic")):
             return False
@@ -159,8 +169,8 @@ class Engine:
             return
         if push:
             threading.Thread(target=self.push, args=(push,), daemon=True).start()
-        # Soft chime only - no voice. Set HOMEWATCH_SOUND=off to silence completely.
-        if os.environ.get("HOMEWATCH_SOUND", "ding") != "off" and shutil.which("paplay"):
+        # Soft chime only - no voice. Set N0RMA_SOUND=off to silence completely.
+        if (os.environ.get("N0RMA_SOUND") or os.environ.get("HOMEWATCH_SOUND") or "ding") != "off" and shutil.which("paplay"):
             snd = "/usr/share/sounds/freedesktop/stereo/message.oga"
             subprocess.Popen(["paplay", snd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if shutil.which("notify-send"):

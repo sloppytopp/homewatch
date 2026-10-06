@@ -134,7 +134,7 @@ class HostDetector:
                 self.base_ports.add(p)
                 eng.db.kv_set("host_ports", sorted(self.base_ports))
             else:
-                problems.append(f"new listening port reachable from the network: {p}  (check it, then run: homewatch rebaseline)")
+                problems.append(f"new listening port reachable from the network: {p}  (check it, then run: n0rma rebaseline)")
         # new USB devices: amber for 10 minutes, then accepted as normal (it is logged either way)
         now = time.time()
         for u in sorted(usb - self.base_usb):
