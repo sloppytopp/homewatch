@@ -13,7 +13,7 @@ DATA_DIR = os.environ.get("HOMEWATCH_DIR") or os.path.expanduser("~/.local/share
 DOMAINS = {
     "drone": "Drone near the house?",
     "tracker": "Active tracker present?",
-    "network": "Hidden camera / unknown device?",
+    "network": "Unknown device?",
     "rf": "Elevated RF / EMF? (RTL-SDR)",
     "host": "This computer's own camera/mic/remote access",
 }
