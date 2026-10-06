@@ -405,3 +405,21 @@ def test_device_labels_survive_and_old_db_is_migrated(tmp_path):
     db = DB(p)   # opening an old database adds the new columns
     db.exec("UPDATE devices SET label=? WHERE mac=?", ("Dance machine", "aa:bb:cc:dd:ee:ff"))
     assert db.query("SELECT label,hostname FROM devices")[0] == {"label": "Dance machine", "hostname": ""}
+
+
+def test_clean_strips_terminal_escapes_and_bidi():
+    from n0rma.core import clean
+    assert clean("Roku\x1b[2J\x1b]0;pwned\x07 TV") == "Roku[2J]0;pwned TV"
+    assert clean("name‮evil") == "nameevil"
+    assert clean("x" * 100) == "x" * 60
+    assert clean("Dance machine") == "Dance machine"
+
+
+def test_hostile_hostname_is_cleaned_in_lookup(monkeypatch):
+    import subprocess
+    from n0rma import det_lan
+
+    class R:
+        stdout = "10.0.0.5\tevil\x1b[31mhost.local\n"
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: R())
+    assert det_lan.lookup_hostname("10.0.0.5") == "evil[31mhost"

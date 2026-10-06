@@ -7,6 +7,7 @@ import subprocess
 import time
 
 from . import oui
+from .core import clean
 
 VIDEO_PORTS = {554: "RTSP video stream", 8554: "RTSP video stream", 8000: "Hikvision SDK", 37777: "Dahua SDK",
                5000: "camera/NAS stream", 8899: "ONVIF/camera", 34567: "Xiongmai DVR", 1935: "RTMP stream",
@@ -43,9 +44,9 @@ def lookup_hostname(ip):
             out = subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             continue
-        name = (pick(out) or [""])[0].removesuffix(".local").strip()
+        name = clean((pick(out) or [""])[0].removesuffix(".local"))
         if name and name != ip:
-            return name[:60]
+            return name
     return ""
 
 

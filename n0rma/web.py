@@ -121,6 +121,9 @@ ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x
 load();setInterval(load,2500);setInterval(()=>{if(LAST)drawRadar(LAST)},120);</script>"""
 
 
+from .core import clean  # noqa: E402
+
+
 def serve(eng, host="127.0.0.1", port=8777, token=None):
     import hmac
     from http.cookies import SimpleCookie
@@ -201,7 +204,7 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
                 q = parse_qs(urlparse(self.path).query)
                 mac = (q.get("mac", [""])[0]).lower()
                 label = q.get("label", [""])[0].strip()
-                if not re.fullmatch(r"[0-9a-f]{2}(:[0-9a-f]{2}){5}", mac) or len(label) > 40 or any(ord(c) < 32 for c in label):
+                if not re.fullmatch(r"[0-9a-f]{2}(:[0-9a-f]{2}){5}", mac) or len(label) > 40 or label != clean(label, 40):
                     return self._send(400, '{"error":"bad name"}')
                 eng.db.exec("UPDATE devices SET label=? WHERE mac=?", (label, mac))
                 return self._send(200, '{"ok":true}')

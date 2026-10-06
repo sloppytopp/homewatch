@@ -3,7 +3,7 @@ import sys
 import threading
 import time
 
-from .core import DOMAINS, DB, Engine, load_config, save_config, new_token
+from .core import DOMAINS, DB, Engine, load_config, save_config, new_token, clean
 
 ICON = {"ok": "OK   ", "watch": "WATCH", "alert": "ALERT", "off": "off  "}
 
@@ -108,7 +108,7 @@ def cmd_devices(a):
     rows = DB().query("SELECT * FROM devices ORDER BY trusted, klass DESC, ip")
     for d in rows:
         t = "trusted " if d["trusted"] else "UNREVIEWED"
-        name = d.get("label") or d.get("hostname") or ""
+        name = clean(d.get("label") or d.get("hostname") or "")
         print(f"{t} {d['ip']:15} {d['mac']} {name[:22]:22} {d['klass']:8} {d['vendor'][:28]:28} ports:{d['ports'] or '-'}")
     print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>   |   give one a name:  n0rma name <mac> Missy iPhone")
 
@@ -123,9 +123,7 @@ def cmd_trust(a):
 
 
 def cmd_name(a):
-    label = " ".join(a.label).strip()[:40]
-    if any(ord(c) < 32 for c in label):
-        sys.exit("Names can't contain control characters.")
+    label = clean(" ".join(a.label), 40)
     DB().exec("UPDATE devices SET label=? WHERE mac=?", (label, a.mac.lower()))
     print("ok" if label else "name cleared")
 

@@ -38,6 +38,12 @@ PUSH_TEXT = {  # phone pushes are deliberately generic: no MACs, no coordinates
 }
 
 
+def clean(text, limit=60):
+    """Strip anything that is not plainly printable (escape codes, control and bidi-override characters).
+    Device names come from the network, so a hostile device could otherwise send terminal escape sequences."""
+    return "".join(c for c in str(text) if c.isprintable()).strip()[:limit]
+
+
 def load_config():
     try:
         with open(CONFIG_PATH) as f:
