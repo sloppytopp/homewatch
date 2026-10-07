@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "homewatch"
-version = "0.2.2"
+name = "n0rma-sec"
+version = "0.4.1"
 description = "Home counter-surveillance detector for Linux: Remote ID drones, Bluetooth trackers, unknown devices, RF."
 readme = "README.md"
 requires-python = ">=3.10"
