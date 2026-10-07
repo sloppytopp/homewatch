@@ -436,3 +436,13 @@ def test_evidence_report_verifies_and_detects_tampering():
     assert not evidence.verify(r.replace("2 watch/alert", "9 watch/alert"))       # edited summary
     assert not evidence.verify("\n".join(l for l in r.split("\n") if not l.startswith("0001 |")))  # deleted line
     assert evidence.verify(evidence.build([], now_ms=5_000_000))
+
+
+def test_evidence_text_added_after_the_chain_fails_verification():
+    from n0rma import evidence
+    r = evidence.build([{"ts": 1_000, "domain": "tracker", "level": "alert", "msg": "Tile persistent"}], now_ms=5_000_000)
+    assert evidence.verify(r)
+    assert not evidence.verify(r + "NOTE: everything above is fine.\n")
+    assert not evidence.verify(r.replace("fixes the time and content.", "is optional."))
+    forged = r.replace("\nCHAIN START", "\n0002 | 2026-01-01 00:00:00 UTC | alert | tracker | forged | 000000000000\n\nCHAIN START", 1)
+    assert not evidence.verify(forged)

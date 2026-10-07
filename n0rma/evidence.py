@@ -7,6 +7,7 @@ import hashlib
 import re
 import time
 
+ADVICE = "To keep this tamper-evident, email or text the CHAIN END value to yourself or an advocate right now: it fixes the time and content."
 VERSION = "homewatch-evidence-v1"   # kept as-is so reports stay compatible with the Android verifier
 
 
@@ -35,7 +36,7 @@ def build(events, now_ms=None):
         h = _sha(f"{h}|{line}")
         out.append(f"{line} | {h[:12]}")
     out += ["", f"CHAIN START: {start[:12]}  (generated-at {now_ms} ms)", f"CHAIN END (final hash): {h}",
-            "To keep this tamper-evident, email or text the CHAIN END value to yourself or an advocate right now: it fixes the time and content."]
+            ADVICE]
     return "\n".join(out) + "\n"
 
 
@@ -52,13 +53,15 @@ def verify(report):
     h = _sha(f"{VERSION}|{m.group(1)}|{_sha(chr(10).join(lines[:start]) + chr(10))}")
     if gen[len("CHAIN START:"):].strip()[:12] != h[:12]:
         return False
-    for l in lines[start + 1:]:
-        if not l.strip():
-            break
+    i = start + 1
+    while i < len(lines) and lines[i].strip():
+        l = lines[i]
         cut = l.rfind(" | ")
         if cut < 0:
             return False
         h = _sha(f"{h}|{l[:cut]}")
         if l[cut + 3:].strip() != h[:12]:
             return False
-    return h == end
+        i += 1
+    # nothing may follow the chain except the exact footer: otherwise text added at the end would still read as "verified"
+    return h == end and lines[i:] == ["", gen, f"CHAIN END (final hash): {end}", ADVICE, ""]
