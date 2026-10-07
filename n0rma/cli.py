@@ -128,6 +128,21 @@ def cmd_name(a):
     print("ok" if label else "name cleared")
 
 
+def cmd_evidence(a):
+    from . import evidence
+    if a.verify:
+        ok = evidence.verify(open(a.verify, encoding="utf-8").read())
+        print("OK: the report matches its hash chain." if ok else "FAILED: the report was changed, or is not a N0RMA evidence report.")
+        sys.exit(0 if ok else 1)
+    rows = DB().query("SELECT ts,domain,level,msg FROM events WHERE ts>? ORDER BY ts", (time.time() - a.days * 86400,))
+    text = evidence.build([dict(r, msg=clean(r["msg"], 400)) for r in rows])
+    if a.out:
+        open(a.out, "w", encoding="utf-8").write(text)
+        print(f"Wrote {a.out}. Send the CHAIN END line at the bottom to yourself or an advocate right away.")
+    else:
+        print(text, end="")
+
+
 def cmd_ignore(a):
     db = DB()
     cur = set(db.kv_get("ble_ignore", []))
@@ -322,6 +337,11 @@ def main():
     rp.add_argument("--hours", type=float, default=72)
     rp.add_argument("--window", type=float, default=5, help="minutes either side of a beep")
     rp.set_defaults(f=cmd_report)
+    ev = sp.add_parser("evidence", help="write a tamper-evident report of everything flagged (for police or an advocate)")
+    ev.add_argument("--days", type=float, default=30)
+    ev.add_argument("-o", "--out", help="write to a file instead of the screen")
+    ev.add_argument("--verify", metavar="FILE", help="check a saved report against its hash chain")
+    ev.set_defaults(f=cmd_evidence)
     sp.add_parser("devices", help="LAN inventory").set_defaults(f=cmd_devices)
     t = sp.add_parser("trust", help="mark LAN device(s) as yours")
     t.add_argument("mac")

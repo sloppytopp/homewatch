@@ -7,7 +7,13 @@ Run: `./n0rma.sh setup` once, then `./n0rma.sh run` -> http://127.0.0.1:8777
 
 ![dashboard with made-up demo data](https://raw.githubusercontent.com/sloppytopp/n0rma/main/docs/screenshot.png)
 
-## What's new in 0.2
+## What's new in 0.4
+- **Evidence report:** `n0rma evidence -o report.txt` writes a plain-text, tamper-evident report of everything flagged (30 days by default) for police or an advocate. Every log line is hash-chained to the one before it; check a saved file with `n0rma evidence --verify report.txt`. Send the final CHAIN END line to someone you trust right away. The Android app makes the same format, and each can verify the other's reports.
+- **Device names:** the dashboard and `n0rma devices` show a name for each device (router DNS or mDNS), and you can set your own: `n0rma name <mac> Missy iPhone`.
+- Dashboard tabs (Status / Nearby / Radar / History), "this is my network" and "I know this device" buttons, and fewer false alerts for virtual bridges and loopback addresses.
+- Renamed from Homewatch: the command is `n0rma` (the old `homewatch` still works), the PyPI package is **`n0rma-sec`**, and existing data is kept.
+
+## What was new in 0.2
 - Dark, muted, low-glare dashboard (no flashing alerts; every status is word + icon + color) with a **Night** switch (dim red on black)
 - A plain-language banner ("All clear" / "Keeping an eye on something" / "Needs your attention") with a breathing dot and live scan ages, so you can see it is working
 - **"This is mine"** on trackers: your own Tile/AirTag stops flagging and shows as yours

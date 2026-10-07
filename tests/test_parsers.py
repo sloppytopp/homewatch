@@ -423,3 +423,16 @@ def test_hostile_hostname_is_cleaned_in_lookup(monkeypatch):
         stdout = "10.0.0.5\tevil\x1b[31mhost.local\n"
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: R())
     assert det_lan.lookup_hostname("10.0.0.5") == "evil[31mhost"
+
+
+def test_evidence_report_verifies_and_detects_tampering():
+    from n0rma import evidence
+    ev = [{"ts": 1_000, "domain": "tracker", "level": "watch", "msg": "Tile nearby rssi=-71"},
+          {"ts": 2_000, "domain": "tracker", "level": "alert", "msg": "Tile persistent"},
+          {"ts": 3_000, "domain": "host", "level": "info", "msg": "not listed"}]
+    r = evidence.build(ev, now_ms=5_000_000)
+    assert evidence.verify(r) and "not listed" not in r and "2 watch/alert events" in r
+    assert not evidence.verify(r.replace("rssi=-71", "rssi=-99"))                 # edited line
+    assert not evidence.verify(r.replace("2 watch/alert", "9 watch/alert"))       # edited summary
+    assert not evidence.verify("\n".join(l for l in r.split("\n") if not l.startswith("0001 |")))  # deleted line
+    assert evidence.verify(evidence.build([], now_ms=5_000_000))
