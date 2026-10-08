@@ -490,3 +490,41 @@ def test_page_has_settings_tab_and_welcome_card():
     assert 'id=welcome' in PAGE
     assert 'Export evidence report' in PAGE
     assert 'Digital safety checklist' in PAGE
+
+
+def test_no_raw_text_field_interpolation_inside_onclick_attributes():
+    """Regression guard: a free-text field (ssid/label/name/hostname/vendor - all attacker-controlled broadcast
+    data) must never be interpolated raw into a double-quoted onclick="..." attribute. That was exactly how a
+    hostile SSID broke out and injected HTML/JS. Numbers (lat/lon) and library-formatted MAC addresses are fine -
+    they structurally cannot contain a quote character. Dynamic free text must go through a data-* attribute
+    instead (see the wifi table's existing pattern)."""
+    import re
+    from n0rma.web import PAGE
+    bad = re.findall(r'onclick="[^"]*\$\{[^}]*\b(?:ssid|label|name|hostname|vendor)\b', PAGE, re.I)
+    assert not bad, f"found a free-text field interpolated raw inside onclick=: {bad}"
+
+
+def test_hostile_ssid_cannot_break_out_of_the_mysсid_onclick_attribute():
+    import re, subprocess, shutil, json
+    from n0rma.web import PAGE
+    if not shutil.which("node"):
+        import pytest
+        pytest.skip("node not available")
+    m = re.search(r"const E=[^\n]*;", PAGE)
+    assert m
+    e_fn = m.group(0)
+    line = re.search(r"document\.getElementById\('mySsids'\)\.innerHTML=.*$", PAGE, re.M)
+    assert line
+    render = line.group(0).split("=", 1)[1].rstrip("}")
+    hostile = '" onmouseover="alert(1)'
+    script = f'''
+{e_fn}
+const d = {{my_ssids: [{json.dumps(hostile)}]}};
+const html = {render};
+console.log(html);
+'''
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=10)
+    assert out.returncode == 0, out.stderr
+    html = out.stdout
+    assert 'onmouseover="alert(1)"' not in html   # the injected attribute must never become live HTML
+    assert "&quot;" in html                        # the quote must be escaped, not passed through raw

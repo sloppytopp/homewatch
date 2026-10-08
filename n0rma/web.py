@@ -101,7 +101,7 @@ async function nameDev(mac,cur){const v=prompt('Name for this device (blank clea
 const post=async u=>{await fetch(u,{method:'POST',headers:{'X-Homewatch':'1'}});load()};
 async function loadHome(){const d=LAST||await (await fetch('/api/status')).json();
  document.getElementById('homeNow').innerHTML=d.home?('Set: '+d.home.lat.toFixed(5)+', '+d.home.lon.toFixed(5)+' - <a href="https://www.openstreetmap.org/?mlat='+d.home.lat+'&mlon='+d.home.lon+'#map=17/'+d.home.lat+'/'+d.home.lon+'" target=_blank>view on map</a>'):'Not set.';
- document.getElementById('mySsids').innerHTML=(d.my_ssids||[]).length?(d.my_ssids||[]).map(s=>`<div>${E(s)} <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent('${E(s).replace(/'/g,"\\'")}'))">not mine</button></div>`).join(''):'<span class=m>none yet</span>'}
+ document.getElementById('mySsids').innerHTML=(d.my_ssids||[]).length?(d.my_ssids||[]).map(s=>`<div>${E(s)} <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(s).replace(/"/g,'&quot;')}">not mine</button></div>`).join(''):'<span class=m>none yet</span>'}
 async function geocode(){const q=document.getElementById('addrQ').value.trim();if(!q)return;
  document.getElementById('addrResults').innerHTML='<span class=m>Searching...</span>';
  const r=await fetch('/api/geocode?q='+encodeURIComponent(q));const j=await r.json();
