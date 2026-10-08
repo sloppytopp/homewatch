@@ -28,8 +28,14 @@ button{font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:va
 button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);cursor:pointer}
 .tabs{display:flex;gap:6px;margin:6px 0}.tabs button{flex:1;font-size:14px;padding:8px 4px;background:var(--card);color:var(--faint)}.tabs button.on{background:var(--btn);color:var(--btnfg)}.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
 </style><div class=top><span class=dot id=hb></span><h1>N0RMA <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
-<div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button></div>
-<div data-tab=status><div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
+<div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button><button data-t=settings>Settings</button></div>
+<div data-tab=status><div class=card id=welcome style="display:none"><b style="font-size:16px">Welcome - here's how this works</b>
+<p style="font-size:13px;color:var(--mut);line-height:1.5">1. N0RMA is already scanning in the background. The banner below tells you in plain words if everything is normal - a breathing dot and live counts are proof it's working.<br>
+2. Use Nearby to see every Wi-Fi network and Bluetooth device in range.<br>
+3. Use Settings to set your home location (for the drone map and distances) and see your known Wi-Fi networks.<br>
+4. Everything stays on this computer except the optional address lookup in Settings. Use the Night switch at the top to dim the screen.</p>
+<button class=s onclick="document.getElementById('welcome').style.display='none';try{localStorage.setItem('hw_welcomed','1')}catch(e){}">Got it</button></div>
+<div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
 <p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>
 </div>
 <div data-tab=radar><div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
@@ -38,7 +44,20 @@ button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);
 <div class=card id=dmapcard style="display:none"><h2>Drone map <span class=m>(real positions from Remote ID)</span></h2>
 <canvas id=dmap width=640 height=480 style="width:100%;max-width:560px;display:block;margin:auto"></canvas><div id=dinfo class=m style="font-size:13px"></div></div>
 </div>
-<div data-tab=history><div class=card><h2>Recent events</h2><table id=ev></table></div></div>
+<div data-tab=history>
+<div class=card><h2>Evidence for police or an advocate</h2>
+<p style="font-size:12px;color:var(--mut)">Makes a plain-text report of everything flagged (30 days) with a tamper-evident hash chain. You choose where to send it; nothing is sent automatically. The Android app makes the same format, and each can verify the other's reports.</p>
+<a href="/api/evidence" download="n0rma-evidence.txt"><button>Export evidence report</button></a></div>
+<details class=card><summary><b>Digital safety checklist (accounts, location sharing, stalkerware)</b></summary><div style="font-size:14px;line-height:1.5">
+<p><b>First, safety:</b> if someone controls or watches your devices, removing their access can alert them. If you may be in danger, talk to an advocate before changing anything (US: National Domestic Violence Hotline 1-800-799-7233, or text START to 88788; tech-safety help at techsafety.org), and use a device they have never touched for sensitive steps.</p>
+<p><b>Google account:</b> on a trusted device open myaccount.google.com &gt; Security &gt; Your devices and Recent security activity, and sign out anything you don't know. In Google Maps &gt; Location sharing, stop sharing with anyone you don't recognize.</p>
+<p><b>Apple account:</b> Settings &gt; [your name] lists every signed-in device. In Find My &gt; People, stop sharing locations you don't want shared.</p>
+<p><b>Family and carrier sharing:</b> check Family Sharing, Google Family Link, and your phone carrier's family locator service for anyone who can see where you are.</p>
+<p><b>Passwords and email:</b> change passwords from a trusted device, turn on 2-step verification, and check your email for forwarding rules and recovery numbers/emails you didn't add.</p>
+<p><b>On this computer:</b> check for unfamiliar remote-access tools or startup programs; N0RMA's own "This computer" tile already watches for new listening ports and remote-access software.</p>
+<p><b>More help:</b> the Coalition Against Stalkerware (stopstalkerware.org) explains the signs and what to do.</p>
+</div></details>
+<div class=card><h2>Recent events</h2><table id=ev></table></div></div>
 <div data-tab=status>
 <details class=card><summary><b>If something is flagged - what to do</b></summary><div style="font-size:14px;line-height:1.5">
 <p><b>Stay calm.</b> Most alerts turn out to be ordinary: a neighbor's device, your own phone, a passing car. A single amber or red line is a reason to look, not proof that someone is targeting you.</p>
@@ -47,6 +66,26 @@ button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);
 <p><b>Unknown device on your Wi-Fi:</b> look it up in your router's client list, block it, then change the Wi-Fi password and turn off WPS and any guest network you don't use.</p>
 <p><b>If you feel unsafe</b> (for example a stalker or abusive partner), contact local police or the National Domestic Violence Hotline (US: 1-800-799-7233). A quiet dashboard is not a guarantee of safety: this tool cannot see every kind of device.</p>
 </div></details></div>
+<div data-tab=settings>
+<div class=card><h2>Home location</h2>
+<p style="font-size:12px;color:var(--mut)">Used for the drone map and for "X m from home" distances. Only the optional address search below leaves this computer (a one-time lookup); nothing else does.</p>
+<p id=homeNow style="font-size:13px"></p>
+<p style="font-size:12px;color:var(--mut)">Search by address:</p>
+<input id=addrQ type=text placeholder="Street address, city, state" style="width:70%;padding:8px;border-radius:6px;border:1px solid var(--ring);background:var(--card);color:var(--fg)">
+<button class=s onclick="geocode()">Search</button>
+<div id=addrResults></div>
+<p style="font-size:12px;color:var(--mut);margin-top:10px">Or type the numbers yourself (west longitude is negative, e.g. 40.7128, -74.0060):</p>
+<input id=latT type=text placeholder="Latitude" style="width:120px;padding:8px;border-radius:6px;border:1px solid var(--ring);background:var(--card);color:var(--fg)">
+<input id=lonT type=text placeholder="Longitude" style="width:120px;padding:8px;border-radius:6px;border:1px solid var(--ring);background:var(--card);color:var(--fg)">
+<button class=s onclick="saveLatLon()">Save these numbers</button>
+<button class=s onclick="post('/api/home?clear=1').then(()=>loadHome())">Clear home location</button>
+</div>
+<div class=card><h2>Your Wi-Fi networks</h2>
+<p style="font-size:12px;color:var(--mut)">Marked "this is my network" on the Nearby tab; they show green on the radar.</p>
+<div id=mySsids></div>
+</div>
+<div class=card><p style="font-size:11px;color:var(--faint)">N0RMA - detect-only. Nothing leaves this computer except the optional address lookup above. Formerly called Homewatch.</p></div>
+</div>
 <div data-tab=nearby><div class=card><h2>Wi-Fi networks nearby</h2><table id=wifi></table></div>
 <div class=card><h2>Devices on your network</h2><table id=lan></table></div>
 <div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div></div>
@@ -56,9 +95,21 @@ night.onchange=()=>{document.documentElement.classList.toggle('night',night.chec
 function showTab(t){document.querySelectorAll('[data-tab]').forEach(e=>e.style.display=e.dataset.tab===t?'':'none');
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));try{localStorage.setItem('hw_tab',t)}catch(e){}}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
-let T0='status';try{T0=localStorage.getItem('hw_tab')||'status'}catch(e){}showTab(['status','nearby','radar','history'].includes(T0)?T0:'status');
+let T0='status';try{T0=localStorage.getItem('hw_tab')||'status'}catch(e){}showTab(['status','nearby','radar','history','settings'].includes(T0)?T0:'status');
+try{if(localStorage.getItem('hw_welcomed')!=='1')document.getElementById('welcome').style.display=''}catch(e){document.getElementById('welcome').style.display=''}
 async function nameDev(mac,cur){const v=prompt('Name for this device (blank clears it):',cur||'');if(v===null)return;await post('/api/label?mac='+mac+'&label='+encodeURIComponent(v.trim()))}
 const post=async u=>{await fetch(u,{method:'POST',headers:{'X-Homewatch':'1'}});load()};
+async function loadHome(){const d=LAST||await (await fetch('/api/status')).json();
+ document.getElementById('homeNow').innerHTML=d.home?('Set: '+d.home.lat.toFixed(5)+', '+d.home.lon.toFixed(5)+' - <a href="https://www.openstreetmap.org/?mlat='+d.home.lat+'&mlon='+d.home.lon+'#map=17/'+d.home.lat+'/'+d.home.lon+'" target=_blank>view on map</a>'):'Not set.';
+ document.getElementById('mySsids').innerHTML=(d.my_ssids||[]).length?(d.my_ssids||[]).map(s=>`<div>${E(s)} <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent('${E(s).replace(/'/g,"\\'")}'))">not mine</button></div>`).join(''):'<span class=m>none yet</span>'}
+async function geocode(){const q=document.getElementById('addrQ').value.trim();if(!q)return;
+ document.getElementById('addrResults').innerHTML='<span class=m>Searching...</span>';
+ const r=await fetch('/api/geocode?q='+encodeURIComponent(q));const j=await r.json();
+ if(!j.results||!j.results.length){document.getElementById('addrResults').innerHTML='<span class=m>No results.</span>';return}
+ document.getElementById('addrResults').innerHTML=j.results.map(x=>`<div style="margin:6px 0">${E(x.name)}<br><button class=s onclick="saveHome(${x.lat},${x.lon})">Use this</button></div>`).join('')}
+async function saveHome(lat,lon){await post('/api/home?lat='+lat+'&lon='+lon);loadHome()}
+function saveLatLon(){const lat=parseFloat(document.getElementById('latT').value),lon=parseFloat(document.getElementById('lonT').value);
+ if(isNaN(lat)||isNaN(lon)){alert('Enter both numbers.');return}saveHome(lat,lon)}
 const ICON={ok:'✓',watch:'◔',alert:'▲',off:'–'};
 const ago=s=>s<60?Math.round(s)+'s':Math.floor(s/60)+'m '+Math.round(s%60)+'s';
 function banner(d){const lv=Object.values(d.state).filter(x=>x.title.indexOf('computer')<0).map(x=>x.level);const w=lv.includes('alert')?'alert':lv.includes('watch')?'watch':'ok';
@@ -110,7 +161,7 @@ function drawDrone(d){const fixes=[].concat(...Object.values(d.live.drone_fixes|
   info.push(`Drone ${E(f.id)}: ${dist} m ${['N','NE','E','SE','S','SW','W','NW'][Math.round(brg/45)%8]} of home, alt ${f.alt??'?'} m`+(f.op_lat?' (amber dot = operator)':'')+` - <a href="https://www.openstreetmap.org/?mlat=${f.lat}&mlon=${f.lon}#map=17/${f.lat}/${f.lon}" target=_blank>open in map</a>`)});
  dinfo.innerHTML=info.join('<br>')}
 async function load(){try{const d=await (await fetch('/api/status')).json();LAST=d;MY=new Set(d.my_ssids||[]);drawRadar(d);drawDrone(d);
-document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();
+document.getElementById('t').textContent=new Date(d.now*1000).toLocaleTimeString();loadHome();
 banner(d);tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.level}"><b>${ICON[s.level]} ${s.level.toUpperCase()} · ${E(s.title)}</b><span>${E(s.msg)}</span></div>`).join('');
 ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
 wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td><td>${w.ssid&&w.ssid!=='(hidden)'?(MY.has(w.ssid)?`<b>(yours)</b> <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">not mine</button>`:`<button class=s onclick="post('/api/mynet?on=1&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">this is my network</button>`):''}</td></tr>`).join('');
@@ -169,6 +220,30 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
                 return self._send(401, "Locked. Open the full link printed by n0rma (it ends in ?k=...).", "text/plain")
             if path == "/api/status":
                 self._send(200, json.dumps(eng.snapshot(), default=str))
+            elif path == "/api/evidence":
+                from . import evidence
+                from .core import clean
+                rows = eng.db.query("SELECT ts,domain,level,msg FROM events WHERE ts>? ORDER BY ts", (__import__("time").time() - 30 * 86400,))
+                text = evidence.build([dict(r, msg=clean(r["msg"], 400)) for r in rows]).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="n0rma-evidence.txt"')
+                self.send_header("Content-Length", str(len(text)))
+                self.end_headers()
+                self.wfile.write(text)
+            elif path == "/api/geocode":
+                import urllib.request, urllib.parse
+                q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:200]
+                if not q:
+                    return self._send(400, '{"error":"empty"}')
+                try:
+                    url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 5})
+                    req = urllib.request.Request(url, headers={"User-Agent": "N0RMA home-counter-surveillance-tool (https://github.com/sloppytopp/n0rma)"})
+                    raw = json.loads(urllib.request.urlopen(req, timeout=8).read())
+                    results = [{"name": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"])} for r in raw]
+                except Exception:
+                    results = []
+                self._send(200, json.dumps({"results": results}))
             elif path == "/":
                 b = PAGE.encode()
                 self.send_response(200)
@@ -218,6 +293,22 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
                 cur = set(cfg.get("my_ssids", []))
                 (cur.add if q.get("on", ["1"])[0] == "1" else cur.discard)(ssid)
                 cfg["my_ssids"] = sorted(cur)
+                save_config(cfg)
+                return self._send(200, '{"ok":true}')
+            if self.path.startswith("/api/home"):
+                from .core import load_config, save_config
+                q = parse_qs(urlparse(self.path).query)
+                cfg = load_config()
+                if q.get("clear", ["0"])[0] == "1":
+                    cfg.pop("home", None)
+                else:
+                    try:
+                        lat, lon = float(q.get("lat", [""])[0]), float(q.get("lon", [""])[0])
+                        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                            raise ValueError
+                    except ValueError:
+                        return self._send(400, '{"error":"bad coordinates"}')
+                    cfg["home"] = {"lat": lat, "lon": lon}
                 save_config(cfg)
                 return self._send(200, '{"ok":true}')
             if self.path == "/api/beep":

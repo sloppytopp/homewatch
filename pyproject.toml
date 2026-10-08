@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Ryan Davis" }]
 dependencies = ["bleak>=0.21"]
+
 classifiers = [
   "Operating System :: POSIX :: Linux",
   "Environment :: Console",
@@ -24,6 +25,9 @@ Issues = "https://github.com/sloppytopp/n0rma/issues"
 [project.scripts]
 n0rma = "n0rma.cli:main"
 homewatch = "n0rma.cli:legacy"   # old name, kept so existing installs keep working
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [tool.setuptools]
 packages = ["n0rma"]

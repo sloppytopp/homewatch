@@ -446,3 +446,47 @@ def test_evidence_text_added_after_the_chain_fails_verification():
     assert not evidence.verify(r.replace("fixes the time and content.", "is optional."))
     forged = r.replace("\nCHAIN START", "\n0002 | 2026-01-01 00:00:00 UTC | alert | tracker | forged | 000000000000\n\nCHAIN START", 1)
     assert not evidence.verify(forged)
+
+
+def test_web_settings_routes(tmp_path):
+    import urllib.request, urllib.error, json
+    from n0rma import core, web
+    core.CONFIG_PATH = str(tmp_path / "c.json")
+    eng = core.Engine(db=core.DB(str(tmp_path / "t.db")), quiet=True)
+    eng.db.exec("INSERT INTO events(ts,domain,level,msg,detail) VALUES(?,?,?,?,?)",
+                (1000, "tracker", "alert", "Tile tracker persistent", "{}"))
+    srv = web.serve(eng, port=18799)
+    try:
+        def get(p): return urllib.request.urlopen("http://127.0.0.1:18799" + p)
+        def post(p):
+            try:
+                return urllib.request.urlopen(urllib.request.Request(
+                    "http://127.0.0.1:18799" + p, method="POST", headers={"X-Homewatch": "1"}))
+            except urllib.error.HTTPError as e:
+                return e
+
+        r = get("/api/evidence")
+        assert r.status == 200
+        assert b"EVIDENCE REPORT" in r.read()
+        assert r.headers["Content-Disposition"] == 'attachment; filename="n0rma-evidence.txt"'
+
+        r = post("/api/home?lat=33.8&lon=-85.16")
+        assert r.status == 200
+        assert json.loads(get("/api/status").read())["home"] == {"lat": 33.8, "lon": -85.16}
+
+        r = post("/api/home?lat=999&lon=0")
+        assert r.status == 400
+
+        r = post("/api/home?clear=1")
+        assert r.status == 200
+        assert json.loads(get("/api/status").read())["home"] is None
+    finally:
+        srv.shutdown()
+
+
+def test_page_has_settings_tab_and_welcome_card():
+    from n0rma.web import PAGE
+    assert 'data-t=settings' in PAGE and 'data-tab=settings' in PAGE
+    assert 'id=welcome' in PAGE
+    assert 'Export evidence report' in PAGE
+    assert 'Digital safety checklist' in PAGE
