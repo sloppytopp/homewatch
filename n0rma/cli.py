@@ -110,7 +110,7 @@ def cmd_devices(a):
         t = "trusted " if d["trusted"] else "UNREVIEWED"
         name = clean(d.get("label") or d.get("hostname") or "")
         print(f"{t} {d['ip']:15} {d['mac']} {name[:22]:22} {d['klass']:8} {d['vendor'][:28]:28} ports:{d['ports'] or '-'}")
-    print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>   |   give one a name:  n0rma name <mac> Missy iPhone")
+    print("\nMark yours as trusted:  n0rma trust all   |   n0rma trust <mac>   |   give one a name:  n0rma name <mac> Alex iPhone")
 
 
 def cmd_trust(a):
