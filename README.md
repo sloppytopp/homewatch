@@ -7,6 +7,11 @@ Run: `./n0rma.sh setup` once, then `./n0rma.sh run` -> http://127.0.0.1:8777
 
 ![dashboard with made-up demo data](https://raw.githubusercontent.com/sloppytopp/n0rma/main/docs/screenshot.png)
 
+## What's new in 0.5
+- **Smart tab** on the dashboard: nearby gadgets grouped by maker (Amazon, Google, Samsung, cameras, plugs) from their network and Bluetooth names, a privacy checklist (Amazon Sidewalk, Ring/Alexa accounts, microphones, router), and a link that opens the community **DeFlock** license-plate-camera map (`maps.deflock.org`) in your browser. `n0rma smart` prints the same checklist. Names are hints, not proof.
+- **Physical inspection:** `n0rma inspect <room>` is a tick-off checklist (ceiling fittings, outlets, objects facing the bed, lens-glint and infrared checks, mirrors, router device list; bedroom/bathroom/rental extras and a car list). Most real finds are physical.
+- **Sweep report:** `n0rma sweep-report -o report.txt` is a TSCM-style report: which areas you inspected, every item NOT checked, what was flagged, and the methods a computer cannot perform (non-linear junction detection, wideband RF, thermal imaging, wired/cellular checks). It never says a place is "clear", and it uses the same tamper-evident hash chain (`n0rma evidence --verify report.txt`).
+
 ## What's new in 0.4
 - **Evidence report:** `n0rma evidence -o report.txt` writes a plain-text, tamper-evident report of everything flagged (30 days by default) for police or an advocate. Every log line is hash-chained to the one before it; check a saved file with `n0rma evidence --verify report.txt`. Send the final CHAIN END line to someone you trust right away. The Android app makes the same format, and each can verify the other's reports.
 - **Device names:** the dashboard and `n0rma devices` show a name for each device (router DNS or mDNS), and you can set your own: `n0rma name <mac> Alex iPhone`.
@@ -35,6 +40,9 @@ Optional RF module: `sudo apt install rtl-sdr` + an RTL-SDR dongle (24 MHz-1.7 G
 | `beep [--ago MIN]` / `report` | log sensor beeps / line them up against detections (with background baseline) |
 | `devices` / `trust all\|<mac>` | LAN inventory; the first scan auto-trusts everything - **review it** |
 | `find <BLE addr>` | hot/cold locator |
+| `inspect <room> [--tick id ...]` | physical-inspection checklist for a room |
+| `sweep-report [-o file]` | TSCM-style report (what was and was NOT checked + everything flagged) |
+| `smart` | smart-device privacy checklist and the DeFlock map link |
 | `home <lat> <lon>` | home position for the drone map (west longitude is negative) |
 | `ntfy setup\|test\|on\|off` | phone alerts (generic text only, via ntfy.sh) |
 | `selftest` | unit tests |

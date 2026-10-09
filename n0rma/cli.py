@@ -143,6 +143,62 @@ def cmd_evidence(a):
         print(text, end="")
 
 
+def cmd_inspect(a):
+    from . import inspection
+    db = DB()
+    key = "inspect:" + a.room
+    done = set(db.kv_get(key, []))
+    if a.reset:
+        db.kv_set(key, [])
+        print(f"{a.room}: checklist reset.")
+        return
+    ids = {i[0] for i in inspection.items_for(a.room)}
+    bad = [t for t in (a.tick or []) if t not in ids]
+    if bad:
+        print("Unknown item id(s): " + ", ".join(bad) + "  (see the ids below)")
+    for t in (a.tick or []):
+        if t in ids:
+            done ^= {t}   # tick, or untick if it was already ticked
+    db.kv_set(key, sorted(done))
+    rooms = set(db.kv_get("inspect_rooms", [])); rooms.add(a.room); db.kv_set("inspect_rooms", sorted(rooms))
+    n, total = inspection.progress(a.room, done)
+    print(f"Physical inspection - {a.room}: {n} of {total} checked   (tick with: n0rma inspect \"{a.room}\" --tick <id> ...)\n")
+    for i, what, how in inspection.items_for(a.room):
+        print(f"  [{'x' if i in done else ' '}] {i:<10} {what}\n        {how}")
+    print("\nA finished list means you looked in these places, not that the room is clear. If you find something you don't own: leave it, photograph it, and talk to an advocate or the police first.")
+
+
+def cmd_sweep_report(a):
+    from . import evidence, tscm
+    db = DB()
+    rooms = {r: set(db.kv_get("inspect:" + r, [])) for r in db.kv_get("inspect_rooms", [])}
+    rows = db.query("SELECT ts,domain,level,msg FROM events WHERE ts>? ORDER BY ts", (time.time() - a.days * 86400,))
+    ev = [dict(r, msg=clean(r["msg"], 400)) for r in rows]
+    text = evidence.build(ev, title=tscm.TITLE, extra=tscm.sections(rooms, ev, len(db.kv_get("ble_ignore", []))))
+    if a.out:
+        open(a.out, "w", encoding="utf-8").write(text)
+        print(f"Wrote {a.out}. Send the CHAIN END line at the bottom to yourself or an advocate right away. Check it later with: n0rma evidence --verify {a.out}")
+    else:
+        print(text, end="")
+
+
+def cmd_smart(a):
+    print("Smart devices and privacy - what to review on gadgets that listen, watch or share your connection\n")
+    for t, steps in SMART_CHECKLIST:
+        print(f"* {t}\n    {steps}\n")
+    print("License-plate cameras: the community DeFlock map is at https://maps.deflock.org (open it in your browser; N0RMA sends nothing).")
+    print("Nearby gadgets grouped by maker are on the dashboard's Smart tab (n0rma run).")
+
+
+SMART_CHECKLIST = [
+    ("Amazon Sidewalk", "Alexa app > More > Settings > Account Settings > Amazon Sidewalk > turn it off. Sidewalk lets Echo and Ring devices share part of your internet connection with nearby Amazon devices. Menu names change between app versions."),
+    ("Ring and Alexa accounts", "In the Ring app open Control Center and review Shared Users and Authorized Client Devices; remove anyone you don't recognise. In the Alexa app open Alexa Privacy to review and delete voice history."),
+    ("Microphones and cameras", "Use the mute button on speakers when you don't need them, keep them out of bedrooms and private rooms, cover or unplug cameras you aren't using."),
+    ("Your router", "Open your router's connected-devices list (or run `n0rma devices`) and look for anything you don't recognise. Put smart gadgets on a guest network, change default passwords, install firmware updates."),
+    ("Old and unused gadgets", "Factory-reset and unplug devices you no longer use, and delete their accounts."),
+]
+
+
 def cmd_ignore(a):
     db = DB()
     cur = set(db.kv_get("ble_ignore", []))
@@ -342,6 +398,16 @@ def main():
     ev.add_argument("-o", "--out", help="write to a file instead of the screen")
     ev.add_argument("--verify", metavar="FILE", help="check a saved report against its hash chain")
     ev.set_defaults(f=cmd_evidence)
+    ins = sp.add_parser("inspect", help="physical-inspection checklist for a room (tick items as you look)")
+    ins.add_argument("room")
+    ins.add_argument("--tick", nargs="*", help="item ids to tick (or untick)")
+    ins.add_argument("--reset", action="store_true")
+    ins.set_defaults(f=cmd_inspect)
+    sw = sp.add_parser("sweep-report", help="TSCM-style report: what was and was NOT checked, plus everything flagged")
+    sw.add_argument("--days", type=float, default=30)
+    sw.add_argument("-o", "--out")
+    sw.set_defaults(f=cmd_sweep_report)
+    sp.add_parser("smart", help="smart-device privacy checklist and the DeFlock license-plate-camera map").set_defaults(f=cmd_smart)
     sp.add_parser("devices", help="LAN inventory").set_defaults(f=cmd_devices)
     t = sp.add_parser("trust", help="mark LAN device(s) as yours")
     t.add_argument("mac")

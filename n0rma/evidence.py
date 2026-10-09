@@ -19,15 +19,17 @@ def _fmt(ts):
     return time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts))
 
 
-def build(events, now_ms=None):
+def build(events, now_ms=None, title="N0RMA EVIDENCE REPORT", extra=""):
     """events: dicts with ts (seconds), domain, level, msg. Only watch/alert events are listed."""
     now_ms = int(now_ms if now_ms is not None else time.time() * 1000)
     flagged = sorted((e for e in events if e["level"] in ("watch", "alert")), key=lambda e: e["ts"])
-    out = ["N0RMA EVIDENCE REPORT", f"Generated: {_fmt(now_ms / 1000)}", "", "SUMMARY (plain language)",
+    out = [title, f"Generated: {_fmt(now_ms / 1000)}", "", "SUMMARY (plain language)",
            "- This report lists what this computer's Bluetooth, Wi-Fi and network checks saw: nearby trackers, drone broadcasts and new or unknown devices.",
            f"- {len(flagged)} watch/alert events are listed below, from {_fmt(flagged[0]['ts']) if flagged else 'n/a'} to {_fmt(flagged[-1]['ts']) if flagged else 'n/a'}.",
            "- Limits: this is signal evidence, not proof of who placed a device. A computer stays in one place, so this report cannot show a tracker following you. "
            "Cellular/GPS trackers cannot be heard. Remote ID drone broadcasts can be faked.", ""]
+    if extra:
+        out += extra.rstrip("\n").split("\n") + [""]   # covered by the hash chain like everything above the event log
     body = "\n".join(out) + "\n"
     h = start = _sha(f"{VERSION}|{now_ms}|{_sha(body)}")
     out.append("EVENT LOG  (line number | time | level | area | detail | chained hash)")

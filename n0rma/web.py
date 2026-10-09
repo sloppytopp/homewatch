@@ -28,7 +28,7 @@ button{font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:va
 button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);cursor:pointer}
 .tabs{display:flex;gap:6px;margin:6px 0}.tabs button{flex:1;font-size:14px;padding:8px 4px;background:var(--card);color:var(--faint)}.tabs button.on{background:var(--btn);color:var(--btnfg)}.e-alert{color:var(--alert)}.e-watch{color:var(--watch)}.m{color:var(--mut)}a{color:var(--btnfg)}
 </style><div class=top><span class=dot id=hb></span><h1>N0RMA <span class=m id=t></span></h1><label class=n><input type=checkbox id=night> Night</label></div>
-<div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button><button data-t=settings>Settings</button></div>
+<div class=tabs id=tabs><button data-t=status>Status</button><button data-t=nearby>Nearby</button><button data-t=radar>Radar</button><button data-t=history>History</button><button data-t=settings>Settings</button><button data-t=smart>Smart</button></div>
 <div data-tab=status><div class=card id=welcome style="display:none"><b style="font-size:16px">Welcome - here's how this works</b>
 <p style="font-size:13px;color:var(--mut);line-height:1.5">1. N0RMA is already scanning in the background. The banner below tells you in plain words if everything is normal - a breathing dot and live counts are proof it's working.<br>
 2. Use Nearby to see every Wi-Fi network and Bluetooth device in range.<br>
@@ -86,6 +86,18 @@ button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);
 </div>
 <div class=card><p style="font-size:11px;color:var(--faint)">N0RMA - detect-only. Nothing leaves this computer except the optional address lookup above. Formerly called Homewatch.</p></div>
 </div>
+<div data-tab=smart><div class=card><h2>Smart devices and privacy</h2>
+<p style="font-size:12px;color:var(--mut)">Gadgets that listen, watch or share your connection, sorted by network name, Bluetooth name and maker. A name match is a hint, not proof; a device that hides its name won't show up here.</p>
+<div id=smartlist></div></div>
+<details class=card><summary><b>Privacy checklist (Sidewalk, Ring/Alexa, microphones, router)</b></summary><div style="font-size:14px;line-height:1.5">
+<p><b>Amazon Sidewalk:</b> Alexa app &gt; More &gt; Settings &gt; Account Settings &gt; Amazon Sidewalk &gt; turn it off. Sidewalk lets Echo and Ring devices share part of your internet connection with nearby Amazon devices. Menu names change between app versions.</p>
+<p><b>Ring and Alexa accounts:</b> in the Ring app open Control Center and review Shared Users and Authorized Client Devices; in the Alexa app open Alexa Privacy to review and delete voice history.</p>
+<p><b>Microphones and cameras:</b> use the mute button on speakers when you don't need them, keep them out of bedrooms, cover or unplug cameras you aren't using.</p>
+<p><b>Your router:</b> look through its connected-devices list, put smart gadgets on a guest network, change default passwords, install firmware updates.</p>
+</div></details>
+<div class=card><h2>License-plate cameras</h2>
+<p style="font-size:12px;color:var(--mut)">DeFlock is a community map of automatic license-plate readers (such as Flock cameras), built on OpenStreetMap. This link opens it in your browser; N0RMA itself sends nothing, and the map site sees your visit like any website.</p>
+<a href="https://maps.deflock.org" target=_blank rel="noopener noreferrer"><button>Open the DeFlock map</button></a></div></div>
 <div data-tab=nearby><div class=card><h2>Wi-Fi networks nearby</h2><table id=wifi></table></div>
 <div class=card><h2>Devices on your network</h2><table id=lan></table></div>
 <div class=card><h2>Bluetooth trackers / drones in range</h2><table id=ble></table></div></div>
@@ -166,6 +178,8 @@ banner(d);tiles.innerHTML=Object.values(d.state).map(s=>`<div class="tile ${s.le
 ev.innerHTML=d.events.map(e=>`<tr class="e-${e.level}"><td>${new Date(e.ts*1000).toLocaleTimeString()}</td><td>${e.level}</td><td>${e.domain}</td><td>${E(e.msg)}</td></tr>`).join('')||'<tr><td class=m>nothing yet</td></tr>';
 wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}</td><td>${w.signal} dBm</td><td>${E(w.vendor)}</td><td>${w.klass}</td><td>${w.ssid&&w.ssid!=='(hidden)'?(MY.has(w.ssid)?`<b>(yours)</b> <button class=s onclick="post('/api/mynet?on=0&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">not mine</button>`:`<button class=s onclick="post('/api/mynet?on=1&ssid='+encodeURIComponent(this.dataset.s))" data-s="${E(w.ssid).replace(/"/g,'&quot;')}">this is my network</button>`):''}</td></tr>`).join('');
 lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.label?`<b>${E(w.label)}</b>`:E(w.hostname)||'<span class=m>-</span>'} <button class=s onclick="nameDev('${w.mac}',this.dataset.n)" data-n="${E(w.label||w.hostname).replace(/"/g,'&quot;')}">name</button></td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td><td>${w.trusted?'<b>(known)</b> ':''}<button class=s onclick="post('/api/trust?on=${w.trusted?0:1}&mac=${w.mac}')">${w.trusted?'not known':'I know this device'}</button></td></tr>`).join('');
+const sm=d.smart||{},GN=d.smart_names||{};
+document.getElementById('smartlist').innerHTML=Object.keys(sm).map(g=>`<p><b>${E((GN[g]||[g])[0])} (${sm[g].length})</b><br><span class=m style="font-size:11px">${E((GN[g]||['',''])[1])}</span></p><table>`+sm[g].slice(0,12).map(r=>`<tr><td>${E(r.title)}</td><td>${E(r.sub)}</td><td>${E(String(r.signal))} dBm</td></tr>`).join('')+'</table>').join('')||'<p class=m style="font-size:13px">No recognisable smart devices heard yet. Wi-Fi refreshes every ~30 s.</p>';
 const b=d.live.ble||{trackers:[],drones:[]};
 ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}${x.mine?' <b>(yours)</b>':''}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td><td>${k==='tracker'?`<button class=s onclick="mine('${x.addr}',${x.mine?0:1})">${x.mine?'not mine':'this is mine'}</button>`:''}</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
 }catch(e){}}
@@ -219,7 +233,14 @@ def serve(eng, host="127.0.0.1", port=8777, token=None):
             if not self._authed():
                 return self._send(401, "Locked. Open the full link printed by n0rma (it ends in ?k=...).", "text/plain")
             if path == "/api/status":
-                self._send(200, json.dumps(eng.snapshot(), default=str))
+                snap = eng.snapshot()
+                try:
+                    from . import smart
+                    snap["smart"] = smart.group_live(snap.get("live", {}))
+                    snap["smart_names"] = {k: list(v) for k, v in smart.GROUPS.items()}
+                except Exception:
+                    pass
+                self._send(200, json.dumps(snap, default=str))
             elif path == "/api/evidence":
                 from . import evidence
                 from .core import clean
