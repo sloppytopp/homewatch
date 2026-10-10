@@ -46,13 +46,16 @@ LAN_DISCOVERY_UDP = {5353, 5355, 3702, 1900, 67, 68, 546, 547}
 
 
 # Virtual bridges (Bluetooth PAN, libvirt, Docker) run their own DHCP/DNS for tethering/containers; not an exposure to the real LAN.
-# tailscale0 is a private WireGuard network of your own signed-in devices (its daemon picks new random ports every restart), so it is not an exposure to strangers.
-VIRTUAL_IFACE = re.compile(r"^(pan|virbr|docker|br-|veth|lxcbr|tailscale)")
+VIRTUAL_IFACE = re.compile(r"^(pan|virbr|docker|br-|veth|lxcbr)")
+# Tailscale's daemon picks new random ports on every restart. They are reachable only from your tailnet, but a backdoor bound to the same
+# interface would be too, so a port counts as ordinary ONLY when it is verifiably owned by tailscaled (not just "on tailscale0").
+TAILSCALE_IFACE = re.compile(r"^tailscale\d+$")
 
 
 def port_class(entry):
     """'info' = harmless-looking (loopback-only, or ordinary LAN discovery); 'alert' = reachable from other machines."""
-    proto, addr, *_ = entry.split(None, 2)
+    proto, addr, *rest = entry.split(None, 2)
+    proc = rest[0].strip() if rest else "?"
     host, _, port = addr.rpartition(":")
     host = host.strip("[]")
     if host.lower().startswith("::ffff:"):   # IPv4-mapped form, e.g. [::ffff:127.0.0.1]
@@ -61,6 +64,8 @@ def port_class(entry):
         return "info"
     iface = host.partition("%")[2]
     if iface and VIRTUAL_IFACE.match(iface):
+        return "info"
+    if iface and TAILSCALE_IFACE.match(iface) and proc == "tailscaled":
         return "info"
     if proto.startswith("udp") and port.isdigit() and int(port) in LAN_DISCOVERY_UDP:
         return "info"
