@@ -46,7 +46,8 @@ LAN_DISCOVERY_UDP = {5353, 5355, 3702, 1900, 67, 68, 546, 547}
 
 
 # Virtual bridges (Bluetooth PAN, libvirt, Docker) run their own DHCP/DNS for tethering/containers; not an exposure to the real LAN.
-VIRTUAL_IFACE = re.compile(r"^(pan|virbr|docker|br-|veth|lxcbr)")
+# tailscale0 is a private WireGuard network of your own signed-in devices (its daemon picks new random ports every restart), so it is not an exposure to strangers.
+VIRTUAL_IFACE = re.compile(r"^(pan|virbr|docker|br-|veth|lxcbr|tailscale)")
 
 
 def port_class(entry):

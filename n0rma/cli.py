@@ -35,7 +35,14 @@ def cmd_run(a):
     if a.lan:
         token = cfg.setdefault("dashboard_key", new_token())
         save_config(cfg)
-    web.serve(eng, "0.0.0.0" if a.lan else "127.0.0.1", a.port, token)
+    try:
+        web.serve(eng, "0.0.0.0" if a.lan else "127.0.0.1", a.port, token)
+    except OSError as e:
+        if e.errno == 98:   # EADDRINUSE
+            print(f"N0RMA is already running: its dashboard is at http://127.0.0.1:{a.port} (port {a.port} is taken, probably by an earlier 'n0rma run').\n"
+                  f"To restart it:  pkill -f 'n0rma run'  and then run it again, or use another port:  n0rma run --port {a.port + 1}")
+            sys.exit(1)
+        raise
     print(f"N0RMA running. Dashboard: http://127.0.0.1:{a.port}")
     if a.lan:
         import subprocess
