@@ -39,13 +39,72 @@ def parse_iw(text):
     return out
 
 
+def parse_iw_dev(text):
+    """`iw dev` output -> [{'name', 'type', 'ssid'}] (one entry per interface)."""
+    out, cur = [], None
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("Interface "):
+            cur = {"name": s.split()[1], "type": "", "ssid": ""}
+            out.append(cur)
+        elif cur is not None and s.startswith("type "):
+            cur["type"] = s.split()[1]
+        elif cur is not None and s.startswith("ssid "):
+            cur["ssid"] = s[5:]
+    return out
+
+
+def pick_iface(ifaces):
+    """The Wi-Fi card to scan with: a 'managed' interface (never a monitor/AP one such as phy0.mon), preferring the one that is connected."""
+    managed = [i for i in ifaces if i["type"] == "managed" and not i["name"].endswith(".mon")]
+    managed.sort(key=lambda i: (not i["ssid"], i["name"]))
+    return managed[0]["name"] if managed else None
+
+
 def iface():
     try:
         out = subprocess.run(["iw", "dev"], capture_output=True, text=True, timeout=5).stdout
-        m = re.search(r"Interface (\S+)", out)
-        return m.group(1) if m else None
+        return pick_iface(parse_iw_dev(out))
     except Exception:
         return None
+
+
+def _nmcli_fields(line):
+    """Split one `nmcli -t` line on unescaped ':' and undo the '\\:' escapes."""
+    fields, cur, i = [], "", 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and i + 1 < len(line):
+            cur += line[i + 1]
+            i += 2
+            continue
+        if ch == ":":
+            fields.append(cur)
+            cur = ""
+        else:
+            cur += ch
+        i += 1
+    fields.append(cur)
+    return fields
+
+
+def parse_nmcli(text):
+    """`nmcli -t -f SSID,BSSID,SIGNAL,FREQ dev wifi list` -> BSS dicts (no root needed; signal % converted to a rough dBm)."""
+    out = []
+    for line in text.splitlines():
+        f = _nmcli_fields(line)
+        if len(f) < 4:
+            continue
+        ssid, bssid = f[0], f[1].lower()
+        if not re.match(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$", bssid):
+            continue
+        try:
+            sig = float(f[2]) / 2 - 100
+            freq = int(re.sub(r"\D", "", f[3]) or 0)
+        except ValueError:
+            sig, freq = -100.0, 0
+        out.append({"bssid": bssid, "ssid": ssid, "signal": sig, "freq": freq, "rid_ies": [], "seen_ms": None})
+    return out
 
 
 class WifiDetector:
@@ -66,9 +125,17 @@ class WifiDetector:
         subprocess.run(["nmcli", "device", "wifi", "rescan", "ifname", ifc], capture_output=True, timeout=15)
         time.sleep(4)
         r = subprocess.run(["iw", "dev", ifc, "scan", "dump"], capture_output=True, text=True, timeout=20)
-        if r.returncode:
+        bss = parse_iw(r.stdout) if not r.returncode else []
+        if len(bss) < 3:   # iw can only show what the driver cached; NetworkManager's list is the fuller view and needs no root
+            n = subprocess.run(["nmcli", "-t", "-f", "SSID,BSSID,SIGNAL,FREQ", "device", "wifi", "list", "ifname", ifc],
+                               capture_output=True, text=True, timeout=15)
+            nm = parse_nmcli(n.stdout) if not n.returncode else []
+            if len(nm) > len(bss):
+                have = {b["bssid"] for b in bss}
+                bss += [b for b in nm if b["bssid"] not in have]
+        if not bss and r.returncode:
             raise RuntimeError(r.stderr.strip() or "iw scan failed")
-        return parse_iw(r.stdout)
+        return bss
 
     def _loop(self):
         while not self.eng.stop.is_set():
@@ -111,7 +178,10 @@ class WifiDetector:
             safe = {k: v for k, v in info.items() if not k.startswith("operator")}
             eng.emit("drone", "alert", "wifi_drone", b["bssid"], base, {**b, **safe}, 120)  # operator position NOT stored
         else:
-            eng.status("drone", "ok", f"No drone signals ({len(bss_list)} Wi-Fi networks in range)", "wifi")
+            few = len(bss_list) <= 2
+            eng.status("drone", "watch" if few else "ok",
+                       (f"No drone signals, but only {len(bss_list)} Wi-Fi network(s) are visible: this adapter may be hiding neighbours, so the Wi-Fi checks are limited"
+                        if few else f"No drone signals ({len(bss_list)} Wi-Fi networks in range)"), "wifi")
         # --- camera-looking APs (spy cams often broadcast their own AP)
         if cam_hits:
             b = max(cam_hits, key=lambda x: x["signal"])

@@ -35,7 +35,7 @@ button.s{font-size:12px;padding:3px 8px}label.n{font-size:13px;color:var(--mut);
 3. Use Settings to set your home location (for the drone map and distances) and see your known Wi-Fi networks.<br>
 4. Everything stays on this computer except the optional address lookup in Settings. Use the Night switch at the top to dim the screen.</p>
 <button class=s onclick="document.getElementById('welcome').style.display='none';try{localStorage.setItem('hw_welcomed','1')}catch(e){}">Got it</button></div>
-<div id=banner class=banner><b>Starting...</b></div><div id=tiles></div>
+<div id=banner class=banner><b>Starting...</b></div><div id=tiles></div><div id=trk></div>
 <p><button onclick="fetch('/api/beep',{method:'POST',headers:{'X-Homewatch':'1'}}).then(load)">I heard the sensor beep - log it now</button></p>
 </div>
 <div data-tab=radar><div class=card><h2>Proximity radar <span class=m>(rough estimate from signal strength - indoors it can be badly wrong; direction is NOT known, blip angles are arbitrary)</span></h2>
@@ -180,6 +180,10 @@ wifi.innerHTML=(d.live.wifi||[]).map(w=>`<tr><td>${E(w.ssid)}</td><td>${w.bssid}
 lan.innerHTML=(d.live.lan||[]).map(w=>`<tr><td>${w.ip}</td><td>${w.label?`<b>${E(w.label)}</b>`:E(w.hostname)||'<span class=m>-</span>'} <button class=s onclick="nameDev('${w.mac}',this.dataset.n)" data-n="${E(w.label||w.hostname).replace(/"/g,'&quot;')}">name</button></td><td>${w.mac}</td><td>${E(w.vendor)}</td><td>${w.klass}${w.gateway?' (router)':''}</td><td>${Object.values(w.ports).join(',')}</td><td>${w.trusted?'<b>(known)</b> ':''}<button class=s onclick="post('/api/trust?on=${w.trusted?0:1}&mac=${w.mac}')">${w.trusted?'not known':'I know this device'}</button></td></tr>`).join('');
 const sm=d.smart||{},GN=d.smart_names||{};
 document.getElementById('smartlist').innerHTML=Object.keys(sm).map(g=>`<p><b>${E((GN[g]||[g])[0])} (${sm[g].length})</b><br><span class=m style="font-size:11px">${E((GN[g]||['',''])[1])}</span></p><table>`+sm[g].slice(0,12).map(r=>`<tr><td>${E(r.title)}</td><td>${E(r.sub)}</td><td>${E(String(r.signal))} dBm</td></tr>`).join('')+'</table>').join('')||'<p class=m style="font-size:13px">No recognisable smart devices heard yet. Wi-Fi refreshes every ~30 s.</p>';
+const b0=d.live.ble||{trackers:[],drones:[]};
+const dur=s=>s<90?s+' s':s<5400?Math.round(s/60)+' min':s<172800?Math.round(s/3600)+' h':Math.round(s/86400)+' days';
+const unk=(b0.trackers||[]).filter(x=>!x.mine);
+document.getElementById('trk').innerHTML=unk.length?'<div class=card><h2>Trackers heard nearby - are any of these yours?</h2>'+unk.map(x=>{const a=String(x.addr).replace(/[^0-9A-Fa-f:]/g,'');return `<div style="font-size:13px;margin:6px 0">${E(x.label)} <span class=m>${a} · ${x.rssi} dBm · here for ${dur(x.seen_s)}</span> <button class=s onclick="mine('${a}',1)">This is mine</button></div>`}).join('')+'<p class=m style="font-size:11px">Tap "This is mine" for your own Tile, AirTag or headphones so they stop being flagged. A tracker you do NOT recognise that stays close for hours is worth finding (n0rma find &lt;address&gt;).</p></div>':'';
 const b=d.live.ble||{trackers:[],drones:[]};
 ble.innerHTML=[...b.drones.map(x=>['DRONE',x]),...b.trackers.map(x=>['tracker',x])].map(([k,x])=>`<tr><td>${k}${x.mine?' <b>(yours)</b>':''}</td><td>${E(x.label)}</td><td>${x.addr}</td><td>${x.rssi} dBm</td><td>${x.seen_s}s</td><td>${k==='tracker'?`<button class=s onclick="mine('${x.addr}',${x.mine?0:1})">${x.mine?'not mine':'this is mine'}</button>`:''}</td></tr>`).join('')||'<tr><td class=m>none</td></tr>';
 }catch(e){}}

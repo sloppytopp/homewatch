@@ -125,6 +125,9 @@ class HostDetector:
                     problems.append(f"microphone device in use by {', '.join(sorted(who))}")
         elif rec:
             problems.append(f"microphone is being recorded by: {', '.join(rec)}")
+        saved_p, saved_u = eng.db.kv_get("host_ports", None), eng.db.kv_get("host_usb", None)
+        if saved_p is not None and not self.learn:   # 'n0rma rebaseline' runs in another process: pick up what it saved
+            self.base_ports, self.base_usb = set(saved_p), set(saved_u or [])
         ports, usb = listening(), usb_devices()
         if self.own_port:
             ports = {p for p in ports if not p.split()[1].endswith(f':{self.own_port}')}
